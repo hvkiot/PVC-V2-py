@@ -232,6 +232,7 @@ def run_ble_server(state):
         print("❌ No BLE adapter found (needs LEAdvertisingManager1 + GattManager1)")
         return
 
+    unregister_old_advertisement(bus, adapter, "/com/example/advertisement0")
     # Build GATT app
     app = Application(bus)
     service = Service(bus, 0, SERVICE_UUID, True)
@@ -272,8 +273,6 @@ def run_ble_server(state):
         reply_handler=on_app_registered,
         error_handler=on_app_error
     )
-
-    unregister_old_advertisement(bus, adapter, "/com/example/advertisement0")
 
     ad_manager.RegisterAdvertisement(
         adv.get_path(),
