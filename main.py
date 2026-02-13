@@ -124,14 +124,6 @@ def main_loop(state, pam, dwin):
                     MODE=mode_a if mode_a is not None else "UNKNOWN"
                 )
 
-                # Debug print (only every 10 loops to reduce spam)
-                if loop_count % 10 == 0:
-                    wa_str = f"{scaled_wa:.3f}" if scaled_wa is not None else "None"
-                    wb_str = f"{scaled_wb:.3f}" if scaled_wb is not None else "None"
-                    print(f"F196 - Mode A: {mode_a}, Mode B: {mode_b}, "
-                          f"WA: {wa}->{wa_str}, WB: {wb}->{wb_str}, "
-                          f"IA: {ia_val:.1f}, IB: {ib_val:.1f}")
-
             # ---------------- FUNCTION 195 ----------------
             elif func == 195:
                 mode_a = safe_execution(lambda: pam.read_ain_mode('A'))
@@ -189,16 +181,9 @@ def main_loop(state, pam, dwin):
                     MODE=mode_a if mode_a is not None else "UNKNOWN"
                 )
 
-                if loop_count % 10 == 0:
-                    wa_str = f"{scaled_wa:.3f}" if scaled_wa is not None else "None"
-                    print(f"F195 - Mode A: {mode_a}, WA: {wa}->{wa_str}, "
-                          f"IA: {ia_val:.1f}, IB: {ib_val:.1f}")
-
             else:
                 # Unknown function – still update state
                 state.update(FUNC=func, MODE="UNKNOWN")
-                if loop_count % 10 == 0:
-                    print(f"Unknown function: {func}")
 
             time.sleep(MAIN_LOOP_DELAY)
 
