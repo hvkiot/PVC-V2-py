@@ -3,6 +3,7 @@ import time
 from config import PAM_PORT, PAM_BAUD, PAM_CMD_DELAY
 from utils.serial_reconnect import SerialReconnect
 
+
 class PAMController:
     """Interface to the PAM serial controller."""
 
@@ -17,19 +18,28 @@ class PAMController:
         self._connected_once = False
 
     def cmd(self, command):
-        """Send a command and return the response."""
+        """Send a command and read until prompt '>'."""
         try:
             self.ser.reset_input_buffer()
             self.ser.write((command + "\r\n").encode())
-            time.sleep(PAM_CMD_DELAY)
-            # read everything available
-            data = self.ser.read_all()
-            return data.decode(errors="ignore")
+
+            # Read until '>' appears, with timeout
+            response = b""
+            start = time.time()
+            while time.time() - start < 0.2:  # max 200ms per command
+                if self.ser.in_waiting:
+                    chunk = self.ser.read(self.ser.in_waiting)
+                    response += chunk
+                    if b">" in chunk or b"\n" in response:
+                        break
+                time.sleep(0.001)  # 1ms yield
+
+            return response.decode(errors="ignore")
         except Exception as e:
             print(f"❌ PAM command error: {e}")
             return ""
-
     # ---------- response parsers ----------
+
     @staticmethod
     def extract_number(resp):
         for token in resp.replace(">", "").split():
