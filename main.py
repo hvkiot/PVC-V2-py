@@ -126,8 +126,10 @@ def main_loop(state, pam, dwin):
 
                 # Debug print (only every 10 loops to reduce spam)
                 if loop_count % 10 == 0:
+                    wa_str = f"{scaled_wa:.3f}" if scaled_wa is not None else "None"
+                    wb_str = f"{scaled_wb:.3f}" if scaled_wb is not None else "None"
                     print(f"F196 - Mode A: {mode_a}, Mode B: {mode_b}, "
-                          f"WA: {wa}->{scaled_wa:.3f}, WB: {wb}->{scaled_wb:.3f}, "
+                          f"WA: {wa}->{wa_str}, WB: {wb}->{wb_str}, "
                           f"IA: {ia_val:.1f}, IB: {ib_val:.1f}")
 
             # ---------------- FUNCTION 195 ----------------
@@ -188,7 +190,8 @@ def main_loop(state, pam, dwin):
                 )
 
                 if loop_count % 10 == 0:
-                    print(f"F195 - Mode A: {mode_a}, WA: {wa}->{scaled_wa if scaled_wa else 0:.3f}, "
+                    wa_str = f"{scaled_wa:.3f}" if scaled_wa is not None else "None"
+                    print(f"F195 - Mode A: {mode_a}, WA: {wa}->{wa_str}, "
                           f"IA: {ia_val:.1f}, IB: {ib_val:.1f}")
 
             else:
