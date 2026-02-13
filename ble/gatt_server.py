@@ -201,24 +201,20 @@ class Advertisement(dbus.service.Object):
         pass
 
 
-def unregister_all_advertisements(bus, adapter_path):
-    """Remove any existing advertisements on this adapter."""
+def unregister_old_advertisement(bus, adapter_path, adv_path):
+    """Try to unregister an advertisement by path if it exists."""
     try:
-        # Get the advertising manager
         ad_manager = dbus.Interface(
             bus.get_object("org.bluez", adapter_path),
-            "org.bluez.LEAdvertisingManager1"
+            LE_ADVERTISING_MANAGER_IFACE
         )
-        # List of known advertisement paths we may have registered
-        known_paths = ["/com/example/advertisement0"]
-        for path in known_paths:
-            try:
-                ad_manager.UnregisterAdvertisement(dbus.ObjectPath(path))
-                print(f"✅ Unregistered old advertisement {path}")
-            except:
-                pass
-    except Exception as e:
-        print(f"⚠️ Could not unregister advertisements: {e}")
+        ad_manager.UnregisterAdvertisement(dbus.ObjectPath(adv_path))
+        print(f"✅ Unregistered old advertisement: {adv_path}")
+    except dbus.exceptions.DBusException as e:
+        # Ignore error if it wasn't registered
+        if "org.bluez.Error.DoesNotExist" not in str(e) and \
+           "org.bluez.Error.NotPermitted" not in str(e):
+            print(f"⚠️ Failed to unregister {adv_path}: {e}")
 
 # -------------------------------------------------
 # Main entry: start BLE server in a GLib main loop thread
@@ -277,7 +273,7 @@ def run_ble_server(state):
         error_handler=on_app_error
     )
 
-    unregister_all_advertisements(bus, adapter)
+    unregister_old_advertisement(bus, adapter, "/com/example/advertisement0")
 
     ad_manager.RegisterAdvertisement(
         adv.get_path(),

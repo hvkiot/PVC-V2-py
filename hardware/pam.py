@@ -18,21 +18,27 @@ class PAMController:
         self._connected_once = False
 
     def cmd(self, command):
-        """Send a command and read until prompt '>'."""
+        """Send a command and read until the prompt '>' is received."""
         try:
+            # Clear input buffer
             self.ser.reset_input_buffer()
+
+            # Send command
             self.ser.write((command + "\r\n").encode())
 
-            # Read until '>' appears, with timeout
+            # Read until '>' appears or timeout
             response = b""
             start = time.time()
-            while time.time() - start < 0.2:  # max 200ms per command
+            timeout = 0.2  # 200ms max per command
+
+            while time.time() - start < timeout:
                 if self.ser.in_waiting:
                     chunk = self.ser.read(self.ser.in_waiting)
                     response += chunk
-                    if b">" in chunk or b"\n" in response:
+                    # Stop if we see the prompt '>' or a newline (sometimes prompt is after)
+                    if b">" in chunk or response.endswith(b">"):
                         break
-                time.sleep(0.001)  # 1ms yield
+                time.sleep(0.001)  # Yield to other threads
 
             return response.decode(errors="ignore")
         except Exception as e:
