@@ -29,7 +29,7 @@ class SerialReconnect:
                     timeout=self.timeout,
                     write_timeout=self.write_timeout
                 )
-                time.sleep(0.5)
+                time.sleep(0.1)
                 print(f"✅ {self.name} connected on {self.port}")
                 return
             except Exception as e:

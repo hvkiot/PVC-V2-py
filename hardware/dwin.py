@@ -3,6 +3,7 @@ import time
 from config import DWIN_PORT, DWIN_BAUD, VPIN_WA, VPIN_WB, VPIN_IA, VPIN_IB, VPIN_TEMP, VPIN_MODE_ADDR
 from utils.serial_reconnect import SerialReconnect
 
+
 class DWINDisplay:
     """Interface to the DWIN serial display."""
 
@@ -52,7 +53,7 @@ class DWINDisplay:
         ])
         self.ser.write(frame)
         self.ser.flush()
-        time.sleep(0.05)
+        time.sleep(0.01)
         self.ser.reset_input_buffer()
         print(f"📄 Switched to page {page_id}")
 

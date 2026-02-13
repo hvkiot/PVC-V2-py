@@ -19,6 +19,8 @@ DBUS_OM_IFACE = "org.freedesktop.DBus.ObjectManager"
 # -------------------------------------------------
 # GATT Application, Service, Characteristic
 # -------------------------------------------------
+
+
 class Application(dbus.service.Object):
     def __init__(self, bus):
         self.path = "/"
@@ -135,6 +137,7 @@ class Characteristic(dbus.service.Object):
 
 class DataCharacteristic(Characteristic):
     """Characteristic that sends notifications with machine state."""
+
     def __init__(self, bus, index, service, state):
         super().__init__(bus, index, CHAR_UUID, ["read", "notify"], service)
         self.state = state   # MachineState instance
@@ -198,9 +201,30 @@ class Advertisement(dbus.service.Object):
         pass
 
 
+def unregister_all_advertisements(bus, adapter_path):
+    """Remove any existing advertisements on this adapter."""
+    try:
+        # Get the advertising manager
+        ad_manager = dbus.Interface(
+            bus.get_object("org.bluez", adapter_path),
+            "org.bluez.LEAdvertisingManager1"
+        )
+        # List of known advertisement paths we may have registered
+        known_paths = ["/com/example/advertisement0"]
+        for path in known_paths:
+            try:
+                ad_manager.UnregisterAdvertisement(dbus.ObjectPath(path))
+                print(f"✅ Unregistered old advertisement {path}")
+            except:
+                pass
+    except Exception as e:
+        print(f"⚠️ Could not unregister advertisements: {e}")
+
 # -------------------------------------------------
 # Main entry: start BLE server in a GLib main loop thread
 # -------------------------------------------------
+
+
 def run_ble_server(state):
     """Set up and register GATT application and advertisement.
        This function will block; call it in a separate thread."""
@@ -252,6 +276,9 @@ def run_ble_server(state):
         reply_handler=on_app_registered,
         error_handler=on_app_error
     )
+
+    unregister_all_advertisements(bus, adapter)
+
     ad_manager.RegisterAdvertisement(
         adv.get_path(),
         {},
