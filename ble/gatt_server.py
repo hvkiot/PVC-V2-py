@@ -7,7 +7,7 @@ from gi.repository import GLib
 from dbus.mainloop.glib import DBusGMainLoop
 
 from config import SERVICE_UUID, CHAR_UUID, BLE_DEVICE_NAME
-from ble.bluez_helpers import find_adapter
+from ble.bluez_helpers import find_adapter, GATT_MANAGER_IFACE, LE_ADVERTISING_MANAGER_IFACE
 
 # D-Bus interface constants
 GATT_SERVICE_IFACE = "org.bluez.GattService1"
