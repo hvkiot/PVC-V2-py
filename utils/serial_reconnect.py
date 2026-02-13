@@ -1,16 +1,10 @@
-# utils/serial_reconnect.py
+# utils/serial_reconnect.py - add connection status check
 import serial
 import time
 import threading
 
 
 class SerialReconnect:
-    """
-    A wrapper around serial.Serial that automatically reopens the port
-    on any failure. All write/read operations are protected and will
-    block until the connection is re-established.
-    """
-
     def __init__(self, port, baudrate, timeout=0.15, write_timeout=0.15,
                  open_retry_delay=1.0, name="Serial"):
         self.port = port
@@ -22,9 +16,11 @@ class SerialReconnect:
         self.ser = None
         self._lock = threading.Lock()
         self._open()
+        self._last_activity = time.time()
 
     def _open(self):
         """Open the serial port, retry forever."""
+        attempts = 0
         while True:
             try:
                 self.ser = serial.Serial(
@@ -33,14 +29,22 @@ class SerialReconnect:
                     timeout=self.timeout,
                     write_timeout=self.write_timeout
                 )
-                # Allow device to settle
                 time.sleep(0.5)
                 print(f"✅ {self.name} connected on {self.port}")
                 return
             except Exception as e:
-                print(
-                    f"⏳ {self.name} not ready ({e}), retrying in {self.open_retry_delay}s...")
+                attempts += 1
+                if attempts % 10 == 0:  # Only print every 10 attempts
+                    print(f"⏳ {self.name} not ready ({e}), waiting...")
                 time.sleep(self.open_retry_delay)
+
+    def is_connected(self):
+        """Check if port is likely connected."""
+        try:
+            with self._lock:
+                return self.ser is not None and self.ser.is_open
+        except:
+            return False
 
     def _reopen(self):
         """Close and reopen the port."""
