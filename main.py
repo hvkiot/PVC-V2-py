@@ -12,6 +12,7 @@ from hardware.pam import PAMController
 from hardware.dwin import DWINDisplay
 from ble.gatt_server import run_ble_server
 
+
 def main():
     print("--- Initializing system ---")
 
@@ -23,7 +24,8 @@ def main():
     dwin = DWINDisplay()
 
     # Start BLE server in background thread
-    ble_thread = threading.Thread(target=run_ble_server, args=(state,), daemon=True)
+    ble_thread = threading.Thread(
+        target=run_ble_server, args=(state,), daemon=True)
     ble_thread.start()
 
     print("--- System running ---")
@@ -53,7 +55,8 @@ def main():
                 wb = pam.read_wb()
                 ia = pam.read_ia()
                 ib = pam.read_ib()
-
+                print(
+                    f"Mode A: {mode_a}, Mode B: {mode_b}, WA: {wa}, WB: {wb}, IA: {ia}, IB: {ib}")
                 # Update display
                 if mode_a:
                     dwin.send_mode(mode_a)
@@ -77,8 +80,10 @@ def main():
                 # Save for BLE
                 state.update(
                     FUNC=func,
-                    WA=dwin.scale_value(wa, mode_a, 196) if wa is not None else None,
-                    WB=dwin.scale_value(wb, mode_b, 196) if wb is not None else None,
+                    WA=dwin.scale_value(
+                        wa, mode_a, 196) if wa is not None else None,
+                    WB=dwin.scale_value(
+                        wb, mode_b, 196) if wb is not None else None,
                     IA=ia,
                     IB=ib,
                     MODE=mode_a
@@ -110,7 +115,8 @@ def main():
 
                 state.update(
                     FUNC=func,
-                    WA=dwin.scale_value(wa, mode_a, 195) if wa is not None else None,
+                    WA=dwin.scale_value(
+                        wa, mode_a, 195) if wa is not None else None,
                     WB=0.0,
                     IA=ia,
                     IB=ib,
@@ -125,6 +131,7 @@ def main():
 
     except KeyboardInterrupt:
         print("\n--- System stopped ---")
+
 
 if __name__ == "__main__":
     main()
