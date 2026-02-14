@@ -1,8 +1,10 @@
 # state.py
 import threading
 
+
 class MachineState:
     """Thread-safe container for the machine's current readings."""
+
     def __init__(self):
         self._data = {
             "FUNC": None,
@@ -10,7 +12,8 @@ class MachineState:
             "WB": None,
             "IA": None,
             "IB": None,
-            "MODE": None
+            "MODE": None,
+            "READY": None
         }
         self._lock = threading.Lock()
 

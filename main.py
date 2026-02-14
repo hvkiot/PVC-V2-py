@@ -65,6 +65,7 @@ def main_loop(state, pam, dwin):
                 wb = safe_execution(pam.read_wb)
                 ia = safe_execution(pam.read_ia)
                 ib = safe_execution(pam.read_ib)
+                ready = safe_execution(pam.get_ready_status)
 
                 # Update display - with safe execution for each operation
                 if mode_a:
@@ -121,7 +122,8 @@ def main_loop(state, pam, dwin):
                     WB=scaled_wb,
                     IA=ia_val,
                     IB=ib_val,
-                    MODE=mode_a if mode_a is not None else "UNKNOWN"
+                    MODE=mode_a if mode_a is not None else "UNKNOWN",
+                    READY=ready
                 )
 
             # ---------------- FUNCTION 195 ----------------
