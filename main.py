@@ -114,6 +114,7 @@ def main_loop(state, pam, dwin):
                     lambda: dwin.send_value(VPIN_TEMP, 24.0),
                     error_msg="DWIN send_value TEMP failed"
                 )
+                print(f"Ready: {ready}")
 
                 # Save for BLE - with None handling
                 state.update(
@@ -132,6 +133,7 @@ def main_loop(state, pam, dwin):
                 wa = safe_execution(pam.read_w)  # uses 'W' command
                 ia = safe_execution(pam.read_ia)
                 ib = safe_execution(pam.read_ib)
+                ready = safe_execution(pam.get_ready_status)
 
                 if mode_a:
                     safe_execution(
@@ -180,7 +182,8 @@ def main_loop(state, pam, dwin):
                     WB=0.0,
                     IA=ia_val,
                     IB=ib_val,
-                    MODE=mode_a if mode_a is not None else "UNKNOWN"
+                    MODE=mode_a if mode_a is not None else "UNKNOWN",
+                    READY=ready
                 )
 
             else:
