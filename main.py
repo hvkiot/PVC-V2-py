@@ -120,8 +120,8 @@ def main_loop(state, pam, dwin):
                     FUNC=func,
                     WA=scaled_wa,
                     WB=scaled_wb,
-                    IA=ia_val,
-                    IB=ib_val,
+                    IA=ia,
+                    IB=ib,
                     MODE=mode_a if mode_a is not None else "UNKNOWN",
                     READY=ready
                 )
