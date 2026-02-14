@@ -119,17 +119,14 @@ class PAMController:
         """Get READYA status using the existing PAM controller."""
         try:
             # Send command and get response
-            responseA = self.cmd("RX1:READYA")
-            responseB = self.cmd("RX1:READYB")
+            response = self.cmd("RX1:READYA")
 
             # Extract number using regex
-            matchA = re.search(r"READYA\s+(-?\d+)", responseA, re.IGNORECASE)
-            matchB = re.search(r"READYB\s+(-?\d+)", responseB, re.IGNORECASE)
+            match = re.search(r"READYA\s+(-?\d+)", response, re.IGNORECASE)
 
-            if matchA and matchB:
-                status_numberA = int(matchA.group(1))
-                status_numberB = int(matchB.group(1))
-                if status_numberA < 0 and status_numberB < 0:
+            if match:
+                status_number = int(match.group(1))
+                if status_number == -4:
                     return "ON"
                 else:
                     return "OFF"
