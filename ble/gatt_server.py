@@ -154,7 +154,7 @@ class DataCharacteristic(Characteristic):
                         f"WB:{data['WB']},"
                         f"IA:{data['IA']},"
                         f"IB:{data['IB']},"
-                        f"MODE:{data['MODE']}\n"
+                        f"MODE:{data['MODE']},"
                         f"READY:{data['READY']}\n"
                     )
                     self.value = [dbus.Byte(b) for b in packet.encode("utf-8")]
