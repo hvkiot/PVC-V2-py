@@ -127,12 +127,12 @@ class PAMController:
             if match:
                 status_number = int(match.group(1))
                 if status_number < 0:
-                    return True, "ON"
+                    return "ON"
                 else:
-                    return False, "OFF"
+                    return "OFF"
             else:
                 cleaned = ' '.join(response.split())
-                return False, f"Parsing Failed. Raw: {cleaned[:50]}"
+                return f"Parsing Failed. Raw: {cleaned[:50]}"
 
         except Exception as e:
-            return False, f"Error: {e}"
+            return f"Error: {e}"
