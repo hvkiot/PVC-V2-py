@@ -114,7 +114,6 @@ def main_loop(state, pam, dwin):
                     lambda: dwin.send_value(VPIN_TEMP, 24.0),
                     error_msg="DWIN send_value TEMP failed"
                 )
-                print(f"Ready: {ready}")
 
                 # Save for BLE - with None handling
                 state.update(
