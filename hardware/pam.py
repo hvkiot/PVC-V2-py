@@ -2,6 +2,7 @@
 import time
 from config import PAM_PORT, PAM_BAUD, PAM_CMD_DELAY
 from utils.serial_reconnect import SerialReconnect
+import re
 
 
 class PAMController:
