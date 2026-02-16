@@ -69,6 +69,7 @@ def main_loop(state, pam, dwin):
                 pin15 = safe_execution(pam.get_pin_15_status)
                 pin6 = safe_execution(pam.get_pin_6_status)
                 ready_led = safe_execution(pam.get_ready_led_status)
+                print(f"Ready LED: {ready_led}")
 
                 # Update display - with safe execution for each operation
                 if mode_a:
