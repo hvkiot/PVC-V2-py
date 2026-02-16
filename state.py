@@ -16,7 +16,8 @@ class MachineState:
             "READY": None,
             "PIN15": None,
             "PIN6": None,
-            "READY_LED": None
+            "READY_LED": None,
+            "ENABLED_B": None
         }
         self._lock = threading.Lock()
 

@@ -72,6 +72,14 @@ class PAMController:
             return "EXP"
         return None
 
+    @staticmethod
+    def extract_bool(resp):
+        if "ON" in resp:
+            return True
+        if "OFF" in resp:
+            return False
+        return None
+
     # ---------- high level commands ----------
     def read_function(self):
         resp = self.cmd("FUNCTION")
@@ -206,3 +214,7 @@ class PAMController:
         except Exception as e:
             print(f"❌ PAM command error: {e}")
             return False
+
+    def get_enabled_b_status(self):
+        resp = self.cmd("ENABLE_B")
+        return self.extract_bool(resp)

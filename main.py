@@ -69,6 +69,7 @@ def main_loop(state, pam, dwin):
                 pin15 = safe_execution(pam.get_pin_15_status)
                 pin6 = safe_execution(pam.get_pin_6_status)
                 ready_led = safe_execution(pam.get_ready_led_status)
+                enabled_b = safe_execution(pam.get_enabled_b_status)
 
                 # Update display - with safe execution for each operation
                 if mode_a:
@@ -130,8 +131,9 @@ def main_loop(state, pam, dwin):
                     READY_LED=ready_led,
                     PIN15=pin15,
                     PIN6=pin6,
+                    ENABLED_B=enabled_b,
                 )
-                print(f"Ready LED: {state['READY_LED']}")
+                print(f"Enabled B: {state['ENABLED_B']}")
 
             # ---------------- FUNCTION 195 ----------------
             elif func == 195:
@@ -143,6 +145,7 @@ def main_loop(state, pam, dwin):
                 pin15 = safe_execution(pam.get_pin_15_status)
                 pin6 = safe_execution(pam.get_pin_6_status)
                 ready_led = safe_execution(pam.get_ready_led_status)
+                enabled_b = safe_execution(pam.get_enabled_b_status)
 
                 if mode_a:
                     safe_execution(
@@ -196,6 +199,7 @@ def main_loop(state, pam, dwin):
                     READY_LED=ready_led,
                     PIN15=pin15,
                     PIN6=pin6,
+                    ENABLED_B=enabled_b,
                 )
 
             else:
