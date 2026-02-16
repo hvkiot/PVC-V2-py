@@ -115,6 +115,25 @@ class PAMController:
             print("✔ PAM MODE verified as STD")
             self._connected_once = True
 
+    def get_ready_led_status(self):
+        """Get READYA status using the existing PAM controller."""
+        try:
+            # Send command and get response
+            response = self.cmd("RX1:READYA")
+            # Extract number using regex
+            match = re.search(r"READYA\s+(-?\d+)", response, re.IGNORECASE)
+            if match:
+                status_number = int(match.group(1))
+                if status_number == -4:
+                    return "ON"
+                else:
+                    return "OFF"
+            else:
+                cleaned = ' '.join(response.split())
+                return f"Parsing Failed. Raw: {cleaned[:50]}"
+        except Exception as e:
+            return f"Error: {e}"
+
     def get_ready_status(self):
         """Decode PAM Status Word properly."""
 
