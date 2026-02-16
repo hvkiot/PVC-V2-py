@@ -133,7 +133,6 @@ def main_loop(state, pam, dwin):
                     PIN6=pin6,
                     ENABLED_B=enabled_b,
                 )
-                print(f"Enabled B: {state['ENABLED_B']}")
 
             # ---------------- FUNCTION 195 ----------------
             elif func == 195:
