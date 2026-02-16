@@ -33,3 +33,8 @@ class MachineState:
     def get(self, key):
         with self._lock:
             return self._data.get(key)
+
+    def __getitem__(self, key):
+        """Allow dictionary-style access, e.g. state['KEY']"""
+        with self._lock:
+            return self._data[key]
