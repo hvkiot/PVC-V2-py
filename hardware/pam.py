@@ -144,7 +144,7 @@ class PAMController:
         """
         try:
             resp = self.cmd("RC:S")
-            val = self.extract_int(resp)
+            val = self.extract_number(resp)
             print(f"RC:S: {val}")
 
             if val is None:
@@ -165,7 +165,7 @@ class PAMController:
         """
         try:
             resp = self.cmd("RC:S")
-            val = self.extract_int(resp)
+            val = self.extract_number(resp)
             print(f"RC:S: {val}")
             if val is None:
                 return False  # Default to OFF if reading fails
