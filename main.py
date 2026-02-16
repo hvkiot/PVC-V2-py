@@ -259,7 +259,7 @@ def main():
                 print("--- Starting BLE server ---")
                 ble_thread = threading.Thread(
                     target=run_ble_server,
-                    args=(state,),
+                    args=(state, pam),
                     daemon=True,
                     name="BLE-Thread"
                 )

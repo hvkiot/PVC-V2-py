@@ -124,7 +124,31 @@ class Characteristic(dbus.service.Object):
 
     @dbus.service.method(GATT_CHRC_IFACE, in_signature="aya{sv}")
     def WriteValue(self, value, options):
-        pass  # not used
+        """Handle write requests from BLE clients."""
+        try:
+            # Convert bytes to string
+            received = bytes(value).decode('utf-8').strip()
+            print(f"📱 BLE Received: '{received}'")
+
+            # Check if this is a command to change function
+            if received in ["195", "196"]:
+                new_mode = int(received)
+                if self.pam_controller:
+                    # Run in a separate thread to avoid blocking BLE
+                    def change_mode():
+                        success = self.pam_controller.change_pam_function(
+                            new_mode)
+                        print(
+                            f"✅ PAM mode change to {new_mode}: {'SUCCESS' if success else 'FAILED'}")
+
+                    threading.Thread(target=change_mode, daemon=True).start()
+                else:
+                    print("❌ PAM controller not available")
+            else:
+                print(f"❌ Invalid command: {received}")
+
+        except Exception as e:
+            print(f"❌ BLE Write error: {e}")
 
     @dbus.service.method(GATT_CHRC_IFACE)
     def StartNotify(self):
@@ -141,6 +165,7 @@ class DataCharacteristic(Characteristic):
     def __init__(self, bus, index, service, state):
         super().__init__(bus, index, CHAR_UUID, ["read", "notify"], service)
         self.state = state   # MachineState instance
+        self.pam_controller = pam_controller
 
     def start_sending(self):
         """Background thread: read state and notify every 0.2s."""
@@ -226,7 +251,7 @@ def unregister_old_advertisement(bus, adapter_path, adv_path):
 # -------------------------------------------------
 
 
-def run_ble_server(state):
+def run_ble_server(state, pam_controller):
     """Set up and register GATT application and advertisement.
        This function will block; call it in a separate thread."""
     DBusGMainLoop(set_as_default=True)
@@ -241,7 +266,7 @@ def run_ble_server(state):
     # Build GATT app
     app = Application(bus)
     service = Service(bus, 0, SERVICE_UUID, True)
-    ch = DataCharacteristic(bus, 0, service, state)
+    ch = DataCharacteristic(bus, 0, service, state, pam_controller)
     service.add_characteristic(ch)
     app.add_service(service)
 

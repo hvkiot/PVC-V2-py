@@ -218,3 +218,56 @@ class PAMController:
     def get_enabled_b_status(self):
         resp = self.cmd("ENABLE_B")
         return self.extract_bool(resp)
+
+    def change_pam_function(self, new_mode):
+        """
+        Change PAM Function Mode (195 / 196)
+
+        WARNING: This performs a factory reset.
+
+        Args:
+            new_mode (int): 195 or 196
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        valid_modes = [195, 196]
+
+        if new_mode not in valid_modes:
+            print(f"❌ Invalid mode: {new_mode}. Must be 195 or 196")
+            return False
+
+        try:
+            print(f"🔄 Attempting to change PAM function to {new_mode}...")
+
+            # Check PIN 15 status first
+            self.ser.reset_input_buffer()
+            status = self.cmd("RX1:READYA")
+
+            if "-" in status:
+                print("❌ PIN 15 is ON - cannot change function")
+                return False
+
+            print("✅ PIN 15 is OFF - proceeding with mode change")
+            time.sleep(2)
+
+            # Send new function
+            self.cmd(f"FUNCTION {new_mode}")
+            time.sleep(0.5)
+
+            # Save to EEPROM
+            self.cmd("SAVE")
+            time.sleep(1.5)
+
+            # Verify the change
+            verify = self.read_function()
+            if verify and int(verify) == new_mode:
+                print(f"✅ Successfully changed to function {new_mode}")
+                return True
+            else:
+                print(f"❌ Verification failed - current function: {verify}")
+                return False
+
+        except Exception as e:
+            print(f"❌ PAM command error: {e}")
+            return False
