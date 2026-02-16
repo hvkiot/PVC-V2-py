@@ -116,23 +116,37 @@ class PAMController:
             self._connected_once = True
 
     def get_ready_status(self):
-        """Get READYA status using the existing PAM controller."""
+        """Decode PAM Status Word properly."""
+
         try:
-            # Send command and get response
             response = self.cmd("RX1:READYA")
 
-            # Extract number using regex
             match = re.search(r"READYA\s+(-?\d+)", response, re.IGNORECASE)
 
             if match:
-                status_number = int(match.group(1))
-                if status_number == -4:
-                    return "ON"
+                val = int(match.group(1))
+
+                # Convert to unsigned 16-bit
+                status = val & 0xFFFF
+
+                chA = (status & 16384) > 0   # Bit 14
+                chB = (status & 32768) > 0   # Bit 15
+
+                if chA and chB:
+                    return "A + B ACTIVE"
+
+                elif chA:
+                    return "A ACTIVE"
+
+                elif chB:
+                    return "B ACTIVE"
+
                 else:
-                    return "OFF"
+                    return "ALL OFF"
+
             else:
                 cleaned = ' '.join(response.split())
-                return f"Parsing Failed. Raw: {cleaned[:50]}"
+                return f"Parsing Failed: {cleaned[:50]}"
 
         except Exception as e:
             return f"Error: {e}"
