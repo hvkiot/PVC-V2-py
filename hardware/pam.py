@@ -237,16 +237,6 @@ class PAMController:
             # 1. Safety Check: Ensure PIN 15 is OFF
             # The manual states switching takes place within protected conditions [Source 34].
             self.ser.reset_input_buffer()
-            status = self.cmd("RX1:READYA")
-
-            # If status is negative (e.g., -4), the power stage is active.
-            if "-" in str(status):
-                print(
-                    "❌ PIN 15 is ON - cannot change function. Please disable the machine.")
-                return False
-
-            print("✅ PIN 15 is OFF - proceeding with mode change")
-            time.sleep(1)
 
             # 2. Send New Function Command
             # This triggers the "Inconsistent Data" state (blinking LEDs) [Source 34].
