@@ -136,3 +136,32 @@ class PAMController:
 
         except Exception as e:
             return f"Error: {e}"
+
+    def get_pin_15_status(self):
+        """
+        Returns True if PIN 15 is ON, False if OFF.
+        Based on your data: PIN 15 adds 64 to the RC:S value.
+        """
+        resp = self.cmd("RC:S")
+        val = self.extract_int(resp)
+
+        if val is None:
+            return False  # Default to OFF if reading fails
+
+        # Check Bit 6 (Binary 64)
+        return (val & 64) > 0
+
+    def get_pin_6_status(self):
+        """
+        Returns True if PIN 6 is ON, False if OFF.
+        Based on your data: PIN 6 adds 8 to the RC:S value.
+        Works even if PIN 15 is OFF.
+        """
+        resp = self.cmd("RC:S")
+        val = self.extract_int(resp)
+
+        if val is None:
+            return False  # Default to OFF if reading fails
+
+        # Check Bit 3 (Binary 8)
+        return (val & 8) > 0

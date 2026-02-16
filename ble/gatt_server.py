@@ -155,7 +155,9 @@ class DataCharacteristic(Characteristic):
                         f"IA:{data['IA']},"
                         f"IB:{data['IB']},"
                         f"MODE:{data['MODE']},"
-                        f"READY:{data['READY']}\n"
+                        f"READY:{data['READY']},"
+                        f"PIN15:{data['PIN15']},"
+                        f"PIN6:{data['PIN6']}\n"
                     )
                     self.value = [dbus.Byte(b) for b in packet.encode("utf-8")]
                     self._notify_value(packet)
