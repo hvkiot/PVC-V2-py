@@ -163,7 +163,8 @@ class DataCharacteristic(Characteristic):
     """Characteristic that sends notifications with machine state."""
 
     def __init__(self, bus, index, service, state, pam_controller=None):
-        super().__init__(bus, index, CHAR_UUID, ["read", "notify"], service)
+        super().__init__(bus, index, CHAR_UUID, [
+            "read", "notify", "write"], service)
         self.state = state   # MachineState instance
         self.pam_controller = pam_controller
 
