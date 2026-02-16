@@ -149,7 +149,7 @@ class PAMController:
 
             if val is None:
                 return False  # Default to OFF if reading fails
-
+            val = int(val)
             # Check Bit 6 (Binary 64)
             return (val & 64) > 0
 
@@ -169,7 +169,7 @@ class PAMController:
             print(f"RC:S: {val}")
             if val is None:
                 return False  # Default to OFF if reading fails
-
+            val = int(val)
             # Check Bit 3 (Binary 8)
             return (val & 8) > 0
         except Exception as e:
