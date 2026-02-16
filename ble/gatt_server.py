@@ -68,7 +68,7 @@ class Service(dbus.service.Object):
 
 
 class Characteristic(dbus.service.Object):
-    def __init__(self, bus, index, uuid, flags, service):
+    def __init__(self, bus, index, uuid, flags, service, pam_controller=None):
         self.path = service.path + f"/char{index}"
         self.bus = bus
         self.uuid = uuid
@@ -77,6 +77,7 @@ class Characteristic(dbus.service.Object):
         self.notifying = False
         self.value = [dbus.Byte(0)]
         dbus.service.Object.__init__(self, bus, self.path)
+        self.pam_controller = pam_controller
 
     def get_path(self):
         return dbus.ObjectPath(self.path)
@@ -131,7 +132,7 @@ class Characteristic(dbus.service.Object):
             print(f"📱 BLE Received: '{received}'")
 
             # Check if this is a command to change function
-            if received in ["195", "196"]:
+            if received in ["195", "196"] and hasattr(self, 'pam_controller'):
                 new_mode = int(received)
                 if self.pam_controller:
                     # Run in a separate thread to avoid blocking BLE
