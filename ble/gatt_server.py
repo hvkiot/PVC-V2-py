@@ -68,7 +68,7 @@ class Service(dbus.service.Object):
 
 
 class Characteristic(dbus.service.Object):
-    def __init__(self, bus, index, uuid, flags, service, pam_controller=None):
+    def __init__(self, bus, index, uuid, flags, service):
         self.path = service.path + f"/char{index}"
         self.bus = bus
         self.uuid = uuid
@@ -77,7 +77,6 @@ class Characteristic(dbus.service.Object):
         self.notifying = False
         self.value = [dbus.Byte(0)]
         dbus.service.Object.__init__(self, bus, self.path)
-        self.pam_controller = pam_controller
 
     def get_path(self):
         return dbus.ObjectPath(self.path)
@@ -163,7 +162,7 @@ class Characteristic(dbus.service.Object):
 class DataCharacteristic(Characteristic):
     """Characteristic that sends notifications with machine state."""
 
-    def __init__(self, bus, index, service, state):
+    def __init__(self, bus, index, service, state, pam_controller=None):
         super().__init__(bus, index, CHAR_UUID, ["read", "notify"], service)
         self.state = state   # MachineState instance
         self.pam_controller = pam_controller
