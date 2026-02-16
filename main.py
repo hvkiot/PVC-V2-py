@@ -68,7 +68,6 @@ def main_loop(state, pam, dwin):
                 ready = safe_execution(pam.get_ready_status)
                 pin15 = safe_execution(pam.get_pin_15_status)
                 pin6 = safe_execution(pam.get_pin_6_status)
-                print(f"PIN15: {pin15}, PIN6: {pin6}")
 
                 # Update display - with safe execution for each operation
                 if mode_a:
