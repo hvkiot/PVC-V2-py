@@ -397,6 +397,7 @@ class PAMController:
 
                 # Verify
                 resp = self.get_current_status()
+                print(resp, value)
                 return resp == int(value)
 
             elif fun == 196:
@@ -411,6 +412,7 @@ class PAMController:
 
                     # Verify
                     resp = self.get_current_a_status()
+                    print(resp, value)
                     return resp == int(value)
 
                 else:  # channel B
@@ -423,6 +425,7 @@ class PAMController:
 
                     # Verify
                     resp = self.get_current_b_status()
+                    print(resp, value)
                     return resp == int(value)
 
             return False
