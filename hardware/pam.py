@@ -250,6 +250,7 @@ class PAMController:
             # 2. Safety Check: PIN 15 must be OFF [Source: 40]
             self.ser.reset_input_buffer()
             status = self.get_pin_15_status()
+            print("Pin 15 Status: ", status)
             if status:
                 print("❌ SAFETY STOP: PIN 15 is ON. Disable the machine first!")
                 return False
