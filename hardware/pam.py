@@ -221,24 +221,52 @@ class PAMController:
         return self.extract_bool(resp)
 
     def get_current_a_status(self):
+        """
+        Returns the current value for A channel in 196 mode
+        """
         resp = self.cmd("CURRENT:A")
         return self.extract_number(resp)
 
     def get_current_b_status(self):
+        """
+        Returns the current value for B channel in 196 mode
+        """
+        """
+        Returns the current value for B channel.
+        """
         resp = self.cmd("CURRENT:B")
         return self.extract_number(resp)
 
     def get_current_status(self):
+        """
+        Returns the current value for A channel in 195 mode
+        """
         resp = self.cmd("CURRENT")
         return self.extract_number(resp)
 
     # ------------ write commands ----------
 
-    def write_current(self, value, channel='A'):
+    def write_current_a(self, value):
         """
         Writes the current value to the PAM.
         """
-        cmd = f"CURRENT:{channel.upper()} {value}"
+        cmd = f"CURRENT:A {value}"
+        self.cmd(cmd)
+        return True
+
+    def write_current_b(self, value):
+        """
+        Writes the current value to the PAM.
+        """
+        cmd = f"CURRENT:B {value}"
+        self.cmd(cmd)
+        return True
+
+    def write_current(self, value):
+        """
+        Writes the current value to the PAM.
+        """
+        cmd = f"CURRENT {value}"
         self.cmd(cmd)
         return True
 
@@ -347,26 +375,59 @@ class PAMController:
                 return False
 
             # Validate value range (500-2600)
-            if not (500 <= value <= 2600):
+            if not (500 <= int(value) <= 2600):
                 print(f"❌ Value {value} is out of range (500mA-2600mA)")
                 return False
 
-             # Flush before starting
+            # Flush before starting
             self.ser.reset_input_buffer()
 
-            # Send AINA_MODE command (correct one!)
-            self.write_current(value, channel)
-            time.sleep(0.5)
+            # Get current function mode
+            fun = self.read_function()
+            print(
+                f"📌 Current mode: {fun}, setting channel {channel} to {value}mA")
 
-            # Save
-            self.save_pam_settings()
-            time.sleep(3.0)  # Wait for EEPROM write
+            # Send command based on mode and channel
+            if fun == 195:
+                # Mode 195: Single channel - ignore channel parameter
+                self.write_current(value)
+                print(f"📌 Mode 195: Setting CURRENT to {value}mA")
 
-            # Verify
-            self.ser.reset_input_buffer()
-            resp = self.get_current_status(channel)
+                # Save settings
+                self.save_pam_settings()
+                time.sleep(3.0)  # Wait for EEPROM write
 
-            return resp == value
+                # Verify
+                resp = self.get_current_status()
+                return resp == int(value)
+
+            elif fun == 196:
+                # Mode 196: Dual channel - set only the requested channel
+                if channel.upper() == 'A':
+                    self.write_current_a(value)
+                    print(f"📌 Mode 196: Setting CURRENT A to {value}mA")
+
+                    # Save settings
+                    self.save_pam_settings()
+                    time.sleep(3.0)  # Wait for EEPROM write
+
+                    # Verify
+                    resp = self.get_current_a_status()
+                    return resp == int(value)
+
+                else:  # channel B
+                    self.write_current_b(value)
+                    print(f"📌 Mode 196: Setting CURRENT B to {value}mA")
+
+                    # Save settings
+                    self.save_pam_settings()
+                    time.sleep(3.0)  # Wait for EEPROM write
+
+                    # Verify
+                    resp = self.get_current_b_status()
+                    return resp == int(value)
+
+            return False
 
         except Exception as e:
             print(f"❌ Error setting current: {e}")
