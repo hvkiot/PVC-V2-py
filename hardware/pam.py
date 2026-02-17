@@ -254,12 +254,8 @@ class PAMController:
             # Verify
             self.ser.reset_input_buffer()
             resp = self.read_function()
-            print(f"Function mode response: {resp}")
-            print(f"New mode: {new_mode}")
-            current = self.extract_number(resp)
-            print(f"Current function mode: {current}")
 
-            return int(current) == int(new_mode)
+            return resp == float(new_mode)
         except Exception as e:
             print(f"Error in change_pam_function: {e}")
             return False
