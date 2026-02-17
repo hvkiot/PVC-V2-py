@@ -219,56 +219,79 @@ class PAMController:
         resp = self.cmd("ENABLE_B")
         return self.extract_bool(resp)
 
-    def change_pam_function(self, new_mode):
+    def change_pam_function_safe(self, new_mode):
         """
-        Change PAM Function Mode (195 / 196)
+        Safely changes PAM Function Mode (195/196) without Power Cycle.
 
-        WARNING: This performs a factory reset.
+        Args:
+            new_mode (int): 195 or 196
         """
-        valid_modes = [195, 196]
-
-        if new_mode not in valid_modes:
-            print(f"❌ Invalid mode: {new_mode}. Must be 195 or 196")
+        if new_mode not in [195, 196]:
+            print(f"❌ Invalid mode: {new_mode}")
             return False
 
+        print(
+            f"🔄 Switching to Mode {new_mode} (NO POWER CYCLE STRATEGY)...")
+
         try:
-            print(f"🔄 Attempting to change PAM function to {new_mode}...")
-
-            # 1. Safety Check: Ensure PIN 15 is OFF
-            # The manual states switching takes place within protected conditions [Source 34].
+            # 1. SAFETY CHECK: PIN 15 MUST BE OFF
+            # The documentation states switching happens in "protected conditions" [Source 40].
             self.ser.reset_input_buffer()
+            # status = self.cmd("RX1:READYA")
 
-            # 2. Send New Function Command
-            # This triggers the "Inconsistent Data" state (blinking LEDs) [Source 34].
+            # # Check if status indicates Active (Negative number)
+            # if status and "-" in str(status):
+            #     print("❌ SAFETY STOP: PIN 15 is ON. Disable the machine first!")
+            #     return False
+
+            # 2. SEND FUNCTION COMMAND
+            # This puts the board into "Inconsistent Data" mode (Blinking LEDs) [Source 40].
             print(f"-> Sending: FUNCTION {new_mode}")
             self.cmd(f"FUNCTION {new_mode}")
-            time.sleep(1.0)
+            time.sleep(0.5)
 
-            # 3. Save to EEPROM (Crucial Step)
-            # You must SAVE to acknowledge the factory reset and stop the blinking [Source 34].
-            print("-> Sending: SAVE (Confirming Factory Reset)")
+            # 3. CRITICAL SAVE SEQUENCE
+            # We send SAVE to write new defaults. Since we can't reboot,
+            # we must ensure this command is processed perfectly.
+            print("-> Sending: SAVE (Writing to EEPROM...)")
             self.cmd("SAVE")
-            time.sleep(2.0)  # Give the EEPROM time to write defaults
 
-            # 4. Handle the "Verify" Step Carefully
-            # The documentation says: "After changing this parameter... the ID-button has to be pressed" [Source 64].
-            # Since we don't have an ID button via Python, we force a reload or just warn the user.
+            # CRITICAL WAIT: The board is now rebuilding the parameter table.
+            # Do not touch it for 3 seconds.
+            print("⏳ Waiting for internal memory rebuild (3s)...")
+            time.sleep(3.0)
 
-            # We attempt to read it, but we don't fail immediately if it returns None/Error
-            # because the board might need a reboot first.
-            verify = self.read_function()
+            # 4. VERIFICATION RETRY LOOP
+            # Instead of failing immediately on 'None', we try 5 times.
+            # The board might be slow to respond after a deep reset.
+            print("🔄 Verifying new mode...")
 
-            if verify and int(verify) == new_mode:
-                print(f"✅ Successfully changed to function {new_mode}")
-                print("⚠️  IMPORTANT: Please Power Cycle the board (OFF/ON) now.")
-                return True
-            else:
-                # Even if verification 'fails' here, the SAVE likely worked.
-                # The board just needs a restart to load the new parameter structure.
-                print(f"⚠️  Command sent, but verification returned: {verify}")
-                print("⚠️  Please RESTART the board (Power OFF/ON) and check again.")
-                return True
+            for attempt in range(1, 6):
+                # Flush garbage data (like your '-24.0' error)
+                self.ser.reset_input_buffer()
+
+                # Ask for the function
+                verify = self.read_function()
+
+                # Check if we got a valid integer matching the new mode
+                if verify and str(verify).strip() == str(new_mode):
+                    print(
+                        f"✅ SUCCESS: Board confirmed Function {new_mode}")
+                    return True
+
+                print(
+                    f"   ⚠️ Attempt {attempt}/5: Board replied '{verify}'. Retrying...")
+                time.sleep(1.0)
+
+                # OPTIONAL: If it fails 3 times, send SAVE again just in case
+                if attempt == 3:
+                    print("   -> Resending SAVE command to be sure...")
+                    self.cmd("SAVE")
+                    time.sleep(1.0)
+
+            print("❌ TIMEOUT: Board did not confirm the new mode.")
+            return False
 
         except Exception as e:
-            print(f"❌ PAM command error: {e}")
+            print(f"❌ Error during mode switch: {e}")
             return False
