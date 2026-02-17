@@ -126,54 +126,88 @@ class Characteristic(dbus.service.Object):
     def WriteValue(self, value, options):
         """Handle write requests from BLE clients."""
         try:
-            # Convert bytes to string
-            received = bytes(value).decode('utf-8').strip()
+            # Convert bytes to string and clean
+            received = bytes(value).decode('utf-8').strip().upper()
             print(f"📱 BLE Received: '{received}'")
 
-            # Check if this is a command to change function
-            if received in ["195", "196"] and hasattr(self, 'pam_controller'):
-                new_mode = int(received)
-                if self.pam_controller:
-                    # Run in a separate thread to avoid blocking BLE
-                    def change_mode():
-                        # Set lock to pause main loop
-                        self.write_lock.set()
-                        try:
-                            success = self.pam_controller.change_pam_function(
-                                new_mode)
-                            print(
-                                f"✅ Mode change to {new_mode}: {'SUCCESS' if success else 'FAILED'}")
-                        finally:
-                            # Always clear lock when done
-                            self.write_lock.clear()
+            # Quick validation
+            if not received or not hasattr(self, 'pam_controller') or not self.pam_controller:
+                print("❌ PAM controller not available")
+                return
 
-                    threading.Thread(target=change_mode, daemon=True).start()
-                else:
-                    print("❌ PAM controller not available")
-            elif received in ["Voltage", "Current"]:
-                if self.pam_controller:
-                    # Run in a separate thread to avoid blocking BLE
-                    def change_mode():
-                        # Set lock to pause main loop
-                        self.write_lock.set()
-                        try:
-                            success = self.pam_controller.write_ain_mode(
-                                received, "A")
-                            print(
-                                f"✅ Mode change to {new_mode}: {'SUCCESS' if success else 'FAILED'}")
-                        finally:
-                            # Always clear lock when done
-                            self.write_lock.clear()
+            # Command mappings
+            COMMANDS = {
+                # Mode changes
+                "195": ("change_mode", 195),
+                "196": ("change_mode", 196),
 
-                    threading.Thread(target=change_mode, daemon=True).start()
-                else:
-                    print("❌ PAM controller not available")
+                # AIN mode settings (case insensitive now)
+                "VOLTAGE": ("set_ain_mode", "Voltage", "A"),
+                "CURRENT": ("set_ain_mode", "Current", "A"),
+                "VOLTAGE_B": ("set_ain_mode", "Voltage", "B"),
+                "CURRENT_B": ("set_ain_mode", "Current", "B"),
 
-            else:
-                print(f"❌ Invalid command: {received}")
+                # Quick status commands
+                "STATUS": ("get_status",),
+                "PIN15": ("get_pin", 15),
+                "PIN6": ("get_pin", 6),
+            }
+
+            # Check if command exists
+            if received not in COMMANDS:
+                print(f"❌ Unknown command: {received}")
+                return
+
+            cmd_info = COMMANDS[received]
+            cmd_type = cmd_info[0]
+
+            # Set lock to pause main loop
+            self.write_lock.set()
+
+            def execute_command():
+                try:
+                    result = None
+
+                    if cmd_type == "change_mode":
+                        new_mode = cmd_info[1]
+                        success = self.pam_controller.change_pam_function(
+                            new_mode)
+                        result = f"Mode {new_mode}: {'✅ SUCCESS' if success else '❌ FAILED'}"
+
+                    elif cmd_type == "set_ain_mode":
+                        mode_type, channel = cmd_info[1], cmd_info[2]
+                        success = self.pam_controller.write_ain_mode(
+                            mode_type, channel)
+                        result = f"AIN {channel} set to {mode_type}: {'✅ SUCCESS' if success else '❌ FAILED'}"
+
+                    elif cmd_type == "get_status":
+                        pin15 = self.pam_controller.get_pin_15_status()
+                        pin6 = self.pam_controller.get_pin_6_status()
+                        result = f"Pin15: {'ON' if pin15 else 'OFF'}, Pin6: {'ON' if pin6 else 'OFF'}"
+
+                    elif cmd_type == "get_pin":
+                        pin_num = cmd_info[1]
+                        if pin_num == 15:
+                            status = self.pam_controller.get_pin_15_status()
+                        else:
+                            status = self.pam_controller.get_pin_6_status()
+                        result = f"Pin{pin_num}: {'ON' if status else 'OFF'}"
+
+                    if result:
+                        print(f"✅ {result}")
+
+                except Exception as e:
+                    print(f"❌ Command execution error: {e}")
+                finally:
+                    # Always clear lock when done
+                    self.write_lock.clear()
+
+            # Run in thread
+            threading.Thread(target=execute_command, daemon=True).start()
 
         except Exception as e:
             print(f"❌ BLE Write error: {e}")
+            self.write_lock.clear()  # Ensure lock is cleared on error
 
     @dbus.service.method(GATT_CHRC_IFACE)
     def StartNotify(self):
