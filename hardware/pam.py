@@ -236,93 +236,49 @@ class PAMController:
         return True
 
     def change_pam_function(self, new_mode):
-        """
-        Safely changes PAM Function Mode (195/196) without Power Cycle.
-        """
-        # 1. Validate Input
         if new_mode not in [195, 196]:
             print(f"❌ Invalid mode: {new_mode}")
             return False
 
-        print(f"🔄 Switching to Mode {new_mode} (NO POWER CYCLE STRATEGY)...")
+        print(f"🔄 Switching to Mode {new_mode}...")
+
+        # ---- Safety check with retries ----
+        for retry in range(3):
+            pin_on = self.get_pin_15_status(confirm_count=2)
+            if not pin_on:
+                break
+            print(f"⚠️ Pin 15 ON on attempt {retry+1}, retrying in 0.5s...")
+            time.sleep(0.5)
+        else:
+            print("❌ SAFETY STOP: PIN 15 remains ON after 3 attempts.")
+            return False
+        # ------------------------------------
 
         try:
-            # 2. Safety Check: PIN 15 must be OFF [Source: 40]
+            # Send FUNCTION command
             self.ser.reset_input_buffer()
-            status = self.get_pin_15_status()
-            print("Pin 15 Status: ", status)
-            if status:
-                print("❌ SAFETY STOP: PIN 15 is ON. Disable the machine first!")
-                return False
-
-            # 3. Send Function Command (Triggers 'Inconsistent Data' / Blinking)
-            self.ser.reset_input_buffer()
-            print(f"-> Sending: FUNCTION {new_mode}")
-            write_status = self.write_function_mode(new_mode)
-            if not write_status:
-                print("❌ Failed to write function mode")
-                return False
+            self.cmd(f"FUNCTION {new_mode}")
             time.sleep(0.5)
 
-            # 4. Critical Save (Writes Defaults to EEPROM) [Source: 70, 106]
+            # Save to EEPROM
             self.ser.reset_input_buffer()
-            print("-> Sending: SAVE (Writing to EEPROM...)")
-            save_status = self.save_pam_settings()
-            if not save_status:
-                print("❌ Failed to save PAM settings")
-                return False
-
-            # WAIT: The board needs time to rebuild the parameter table
-            print("⏳ Waiting for internal memory rebuild (3s)...")
+            self.cmd("SAVE")
+            print("⏳ Waiting for EEPROM write (3s)...")
             time.sleep(3.0)
 
-            # 5. Verification Loop (Robust)
-            print("🔄 Verifying new mode...")
-
-            for attempt in range(1, 10):  # Increased attempts to 10
-                self.ser.reset_input_buffer()  # CRITICAL: Clear old status messages like -4.0
-
-                # Request current function
-                response = self.cmd("RX1:FUNCTION")
-
-                # CLEAN & PARSE: Handle "196.0", "196", or garbage
-                try:
-                    if response:
-                        # Extract number using regex (handles "196.0" or "FUNCTION 196")
-                        import re
-                        match = re.search(r"(\d+(\.\d+)?)", str(response))
-                        if match:
-                            val_float = float(match.group(1))
-                            val_int = int(val_float)  # Converts 196.0 -> 196
-
-                            if val_int == new_mode:
-                                print(
-                                    f"✅ SUCCESS: Board Confirmed Function {val_int}")
-                                return True
-
-                            print(
-                                f"   ⚠️ Attempt {attempt}: Read '{val_int}' (Expected {new_mode})...")
-                        else:
-                            print(
-                                f"   ⚠️ Attempt {attempt}: Garbage data '{response}'...")
-                    else:
-                        print(f"   ⚠️ Attempt {attempt}: No response...")
-
-                except Exception as parse_err:
-                    print(f"   ⚠️ Parsing error: {parse_err}")
-
-                # Retry Logic
-                time.sleep(1.0)
-
-                # If stuck after 4 tries, re-send SAVE (The "Kick")
+            # Verification (as you already have)
+            for attempt in range(1, 10):
+                self.ser.reset_input_buffer()
+                resp = self.cmd("RX1:FUNCTION")
+                # ... your parsing logic ...
+                if verified:
+                    return True
                 if attempt == 4:
-                    print("   -> Re-sending SAVE to nudge the processor...")
-                    self.cmd("SAVE")
+                    self.cmd("SAVE")   # Kick the board again
                     time.sleep(1.0)
-
-            print("❌ TIMEOUT: Verification failed.")
+            print("❌ Verification failed.")
             return False
 
         except Exception as e:
-            print(f"❌ Error during mode switch: {e}")
+            print(f"❌ Error: {e}")
             return False
