@@ -80,7 +80,17 @@ class PAMController:
             return False
         return None
 
+    # ----------Hidden commands----------
+    def read_status_value(self):
+        resp = self.cmd("RX1:READYA")
+        return self.extract_number(resp)
+
+    def read_remote_control_status(self):
+        resp = self.cmd("RC:S")
+        return self.extract_number(resp)
+
     # ---------- high level commands ----------
+
     def read_function(self):
         resp = self.cmd("FUNCTION")
         return self.extract_number(resp)
@@ -127,7 +137,8 @@ class PAMController:
         """Get READYA status using the existing PAM controller."""
         try:
             # Send command and get response
-            response = self.cmd("RX1:READYA")
+            response = self.read_status_value()
+            print(f"READYA: {response}")
             # Extract number using regex
             match = re.search(r"READYA\s+(-?\d+)", response, re.IGNORECASE)
             if match:
@@ -143,33 +154,46 @@ class PAMController:
             return f"Error: {e}"
 
     def get_ready_status(self):
-        """Decode PAM Status Word properly."""
-
+        """Decode PAM Status Word properly based on Mode 195 or 196."""
         try:
-            response = self.cmd("RX1:READYA")
-
+            response = self.read_status_value()
             match = re.search(r"READYA\s+(-?\d+)", response, re.IGNORECASE)
 
             if match:
                 val = int(match.group(1))
+                mode = self.read_function()  # Call once and store
 
-                # Convert to unsigned 16-bit
-                status = val & 0xFFFF
+                # --- MODE 196 LOGIC (Standard / Dual Throttle) ---
+                if mode == 196:
+                    status = val & 0xFFFF
+                    chA = (status & 16384) > 0   # Bit 14
+                    chB = (status & 32768) > 0   # Bit 15
 
-                chA = (status & 16384) > 0   # Bit 14
-                chB = (status & 32768) > 0   # Bit 15
+                    if chA and chB:
+                        return "A + B ACTIVE"
+                    elif chA:
+                        return "A ACTIVE"
+                    elif chB:
+                        return "B ACTIVE"
+                    else:
+                        return "ALL OFF"
 
-                if chA and chB:
-                    return "A + B ACTIVE"
+                # --- MODE 195 LOGIC (Directional Valve) ---
+                elif mode == 195:
+                    # Bit 0 determines if the Enable Pin 15 is active
+                    # -3 (Binary ...1101) is ACTIVE
+                    # -4 (Binary ...1100) is STANDBY
+                    is_active = (val & 1) > 0  # Check Bit 0
 
-                elif chA:
-                    return "A ACTIVE"
-
-                elif chB:
-                    return "B ACTIVE"
+                    if is_active:
+                        return "SYSTEM ACTIVE"
+                    elif val == -4:
+                        return "STANDBY (Pin 15 Off)"
+                    else:
+                        return "ALL OFF"
 
                 else:
-                    return "ALL OFF"
+                    return f"Unknown Mode: {mode}"
 
             else:
                 cleaned = ' '.join(response.split())
@@ -184,8 +208,7 @@ class PAMController:
         Based on your data: PIN 15 adds 64 to the RC:S value.
         """
         try:
-            resp = self.cmd("RC:S")
-            val = self.extract_number(resp)
+            val = self.read_remote_control_status()
 
             if val is None:
                 return False  # Default to OFF if reading fails
@@ -204,8 +227,7 @@ class PAMController:
         Works even if PIN 15 is OFF.
         """
         try:
-            resp = self.cmd("RC:S")
-            val = self.extract_number(resp)
+            val = self.read_remote_control_status()
             if val is None:
                 return False  # Default to OFF if reading fails
             val = int(val)
@@ -256,11 +278,11 @@ class PAMController:
             resp = self.read_function()
 
             if new_mode == 195:
-                self.cmd("IA 0")        # set IA to 0
+                self.cmd("IA 0")
                 time.sleep(0.1)
-                self.cmd("IB 0")        # set IB to 0
+                self.cmd("IB 0")
                 time.sleep(0.1)
-                self.save_pam_settings()        # save again
+                self.save_pam_settings()
             elif new_mode == 196:
                 self.cmd("IA 0")
                 time.sleep(0.1)
