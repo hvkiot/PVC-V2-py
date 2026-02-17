@@ -133,74 +133,52 @@ class PAMController:
             print("✔ PAM MODE verified as STD")
             self._connected_once = True
 
-    def get_ready_led_status(self):
-        """Get READYA status using the existing PAM controller."""
-        try:
-            # Send command and get response
-            response = self.read_status_value()
-            # Extract number using regex
-            match = re.search(r"READYA\s+(-?\d+)", response, re.IGNORECASE)
-            if match:
-                status_number = int(match.group(1))
-                if status_number == -4:
-                    return "ON"
-                else:
-                    return "OFF"
-            else:
-                cleaned = ' '.join(response.split())
-                return f"Parsing Failed. Raw: {cleaned[:50]}"
-        except Exception as e:
-            return f"Error: {e}"
-
     def get_ready_status(self):
         """Decode PAM Status Word properly based on Mode 195 or 196."""
         try:
-            response = self.read_status_value()
-            match = re.search(r"READYA\s+(-?\d+)", response, re.IGNORECASE)
-            print(f"READYA: {response}")
-    
-            if match:
-                val = int(match.group(1))
-                mode = self.read_function()  # Call once and store
+            # response is now a float/int because of self.extract_number()
+            val_raw = self.read_status_value()
 
-                # --- MODE 196 LOGIC (Standard / Dual Throttle) ---
-                if mode == 196:
-                    status = val & 0xFFFF
-                    chA = (status & 16384) > 0   # Bit 14
-                    chB = (status & 32768) > 0   # Bit 15
+            if val_raw is None:
+                return "No Data"
 
-                    if chA and chB:
-                        return "A + B ACTIVE"
-                    elif chA:
-                        return "A ACTIVE"
-                    elif chB:
-                        return "B ACTIVE"
-                    else:
-                        return "ALL OFF"
+            # Convert float to int (e.g., -4.0 -> -4)
+            val = int(val_raw)
+            mode = self.read_function()
 
-                # --- MODE 195 LOGIC (Directional Valve) ---
-                elif mode == 195:
-                    # Bit 0 determines if the Enable Pin 15 is active
-                    # -3 (Binary ...1101) is ACTIVE
-                    # -4 (Binary ...1100) is STANDBY
-                    is_active = (val & 1) > 0  # Check Bit 0
+            # --- MODE 196 LOGIC (Standard / Dual Throttle) ---
+            if mode == 196:
+                status = val & 0xFFFF
+                chA = (status & 16384) > 0   # Bit 14
+                chB = (status & 32768) > 0   # Bit 15
 
-                    if is_active:
-                        return "SYSTEM ACTIVE"
-                    elif val == -4:
-                        return "STANDBY (Pin 15 Off)"
-                    else:
-                        return "ALL OFF"
-
+                if chA and chB:
+                    return "A + B ACTIVE"
+                elif chA:
+                    return "A ACTIVE"
+                elif chB:
+                    return "B ACTIVE"
                 else:
-                    return f"Unknown Mode: {mode}"
+                    return "ALL OFF"
+
+            # --- MODE 195 LOGIC (Directional Valve) ---
+            elif mode == 195:
+                # Bit 0 check: -3 is Active, -4 is Standby
+                is_active = (val & 1) > 0
+
+                if is_active:
+                    return "SYSTEM ACTIVE"
+                elif val == -4:
+                    return "STANDBY (Pin 15 Off)"
+                else:
+                    return "ALL OFF"
 
             else:
-                cleaned = ' '.join(response.split())
-                return f"Parsing Failed: {cleaned[:50]}"
+                return f"Unknown Mode: {mode}"
 
         except Exception as e:
-            return f"Error: {e}"
+            # This is where your 'got float' error was being caught
+            return f"READY Error: {e}"
 
     def get_pin_15_status(self):
         """
