@@ -237,80 +237,26 @@ class PAMController:
 
     def change_pam_function(self, new_mode):
         if new_mode not in [195, 196]:
-            print(f"❌ Invalid mode: {new_mode}")
             return False
-
-        print(f"🔄 Switching to Mode {new_mode}...")
-
-        # ---- Safety check with retries ----
-        for retry in range(3):
-            pin_on = self.get_pin_15_status()
-            if not pin_on:
-                break
-            print(f"⚠️ Pin 15 ON on attempt {retry+1}, retrying in 0.5s...")
-            time.sleep(0.5)
-        else:
-            print("❌ SAFETY STOP: PIN 15 remains ON after 3 attempts.")
-            return False
-        # ------------------------------------
 
         try:
-            # Send FUNCTION command
+            # Flush before starting
             self.ser.reset_input_buffer()
-            self.read_function()
+
+            # Send FUNCTION_MODE command (correct one!)
+            self.write_function_mode(new_mode)
             time.sleep(0.5)
 
-            # Save to EEPROM
-            self.ser.reset_input_buffer()
+            # Save
             self.save_pam_settings()
-            print("⏳ Waiting for EEPROM write (3s)...")
-            time.sleep(3.0)
+            time.sleep(3.0)  # Wait for EEPROM write
 
-            # Verification (as you already have)
-            for attempt in range(1, 10):  # Increased attempts to 10
-                self.ser.reset_input_buffer()  # CRITICAL: Clear old status messages like -4.0
+            # Verify
+            self.ser.reset_input_buffer()
+            resp = self.read_function()
+            current = self.extract_int(resp)
 
-                # Request current function
-                response = self.read_function()
-
-                # CLEAN & PARSE: Handle "196.0", "196", or garbage
-                try:
-                    if response:
-                        # Extract number using regex (handles "196.0" or "FUNCTION 196")
-                        import re
-                        match = re.search(r"(\d+(\.\d+)?)", str(response))
-                        if match:
-                            val_float = float(match.group(1))
-                            val_int = int(val_float)  # Converts 196.0 -> 196
-
-                            if val_int == new_mode:
-                                print(
-                                    f"✅ SUCCESS: Board Confirmed Function {val_int}")
-                                return True
-
-                            print(
-                                f"   ⚠️ Attempt {attempt}: Read '{val_int}' (Expected {new_mode})...")
-                        else:
-                            print(
-                                f"   ⚠️ Attempt {attempt}: Garbage data '{response}'...")
-                    else:
-                        print(f"   ⚠️ Attempt {attempt}: No response...")
-
-                except Exception as parse_err:
-                    print(f"   ⚠️ Parsing error: {parse_err}")
-
-                # Retry Logic
-                time.sleep(1.0)
-
-                # If stuck after 4 tries, re-send SAVE (The "Kick")
-                if attempt == 4:
-                    print("   -> Re-sending SAVE to nudge the processor...")
-                    self.save_pam_settings()
-                    time.sleep(1.0)
-
-            print("❌ TIMEOUT: Verification failed.")
-            return False
-
+            return current == new_mode
         except Exception as e:
-            print(f"❌ Error: {e}")
+            print(f"Error in change_pam_function: {e}")
             return False

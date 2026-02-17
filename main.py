@@ -25,13 +25,17 @@ def safe_execution(func, default=None, error_msg=None):
         return default
 
 
-def main_loop(state, pam, dwin):
+def main_loop(state, pam, dwin, write_lock):
     """Main processing loop - isolated so it can be restarted."""
     last_mode_check = 0
     loop_count = 0
 
     while True:
         try:
+            if write_lock.is_set():
+                time.sleep(0.05)  # short delay, then retry
+                continue
+
             now = time.time()
             loop_count += 1
 
@@ -239,6 +243,7 @@ def main():
 
     # Persistent state across restarts
     state = MachineState()
+    pam_write_in_progress = threading.Event()
 
     # BLE server runs in background and will auto-reconnect
     ble_thread_running = False
@@ -257,7 +262,7 @@ def main():
                 print("--- Starting BLE server ---")
                 ble_thread = threading.Thread(
                     target=run_ble_server,
-                    args=(state, pam),
+                    args=(state, pam, pam_write_in_progress),
                     daemon=True,
                     name="BLE-Thread"
                 )
@@ -268,7 +273,7 @@ def main():
             print("--- System running (press Ctrl+C to stop) ---\n")
 
             # Run the main processing loop
-            main_loop(state, pam, dwin)
+            main_loop(state, pam, dwin, pam_write_in_progress)
 
         except KeyboardInterrupt:
             print("\n\n🛑 System shutdown complete")
