@@ -141,6 +141,10 @@ def main_loop(state, pam, dwin, write_lock):
                     CURRENT_B_STATUS=current_b_status,
                     CURRENT_STATUS=current_a_status
                 )
+                print(current_a_status)
+                print(current_b_status)
+                print(current_status)
+
                 print(state['CURRENT_A_STATUS'])
                 print(state['CURRENT_B_STATUS'])
                 print(state['CURRENT_STATUS'])
