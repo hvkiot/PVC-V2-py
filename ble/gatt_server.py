@@ -150,6 +150,25 @@ class Characteristic(dbus.service.Object):
                     threading.Thread(target=change_mode, daemon=True).start()
                 else:
                     print("❌ PAM controller not available")
+            elif received in ["Voltage", "Current"]:
+                if self.pam_controller:
+                    # Run in a separate thread to avoid blocking BLE
+                    def change_mode():
+                        # Set lock to pause main loop
+                        self.write_lock.set()
+                        try:
+                            success = self.pam_controller.write_ain_mode(
+                                received, "A")
+                            print(
+                                f"✅ Mode change to {new_mode}: {'SUCCESS' if success else 'FAILED'}")
+                        finally:
+                            # Always clear lock when done
+                            self.write_lock.clear()
+
+                    threading.Thread(target=change_mode, daemon=True).start()
+                else:
+                    print("❌ PAM controller not available")
+
             else:
                 print(f"❌ Invalid command: {received}")
 

@@ -222,6 +222,14 @@ class PAMController:
 
     # ------------ write commands ----------
 
+    def write_ain_mode(self, mode, channel='A'):
+        """
+        Writes the input mode to the PAM.
+        """
+        cmd = f"AINA {mode}" if channel.upper() == 'A' else f"AINB {mode}"
+        self.cmd(cmd)
+        return True
+
     def write_function_mode(self, mode):
         """
         Writes the function mode to the PAM.
