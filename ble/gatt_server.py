@@ -213,16 +213,18 @@ class Characteristic(dbus.service.Object):
             cmd_type = cmd_info[0]
 
             # Initialize variables
-            channel = None
             mode_type = None
             target_mode = None
-            pending_ain_commands = []  # Queue for AIN commands after mode change
+            current_mode = self.pam_controller.read_function()
+            current_ain_mode = self.pam_controller.read_ain_mode()
 
             # Check if this is a mode change command
             if cmd_type == "change_mode":
                 target_mode = cmd_info[1]
+                if current_mode == target_mode:
+                    print(f"❌ Mode {target_mode} is already active")
+                    return
                 print(f"📌 Mode change command received: {target_mode}")
-
                 # Set lock to pause main loop
                 self.write_lock.set()
 
@@ -271,9 +273,9 @@ class Characteristic(dbus.service.Object):
             elif cmd_type == "set_ain_mode":
                 mode_type = cmd_info[1]
 
-                # Strip 'S' if present (for VOLTAGES/CURRENTS)
-                if mode_type.endswith('S'):
-                    mode_type = mode_type[:-1]
+                if current_ain_mode == mode_type:
+                    print(f"❌ AIN mode {mode_type} is already active")
+                    return
 
                 # Check if we have a successful mode change yet
                 if not hasattr(self, 'last_mode_command'):
