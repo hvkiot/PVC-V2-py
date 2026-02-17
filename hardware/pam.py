@@ -244,22 +244,23 @@ class PAMController:
             self.ser.reset_input_buffer()
 
             # Send FUNCTION_MODE command (correct one!)
-            wr = self.write_function_mode(new_mode)
-            print(f"Write function mode: {wr}")
+            self.write_function_mode(new_mode)
             time.sleep(0.5)
 
             # Save
-            sv = self.save_pam_settings()
-            print(f"Save function mode: {sv}")
+            self.save_pam_settings()
             time.sleep(3.0)  # Wait for EEPROM write
 
             # Verify
             self.ser.reset_input_buffer()
             resp = self.read_function()
-            print(f"Function mode response: {resp}")
-            print(f"New mode: {new_mode}")
-            print(resp == float(new_mode))
-            print(resp == new_mode)
+
+            if new_mode == 195:
+                self.cmd("IA 0")        # set IA to 0
+                time.sleep(0.1)
+                self.cmd("IB 0")        # set IB to 0
+                time.sleep(0.1)
+                self.save_pam_settings()        # save again
 
             return resp == float(new_mode)
         except Exception as e:
