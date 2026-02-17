@@ -75,6 +75,7 @@ def main_loop(state, pam, dwin, write_lock):
                 enabled_b = safe_execution(pam.get_enabled_b_status)
                 current_a_status = safe_execution(pam.get_current_a_status)
                 current_b_status = safe_execution(pam.get_current_b_status)
+                current_status = safe_execution(pam.get_current_status)
 
                 # Update display - with safe execution for each operation
                 if mode_a:
