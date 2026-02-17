@@ -161,21 +161,22 @@ class PAMController:
                 else:
                     return "ALL OFF"
 
-            # --- MODE 195 LOGIC (Directional Valve) ---
+            # --- MODE 195 LOGIC (Directional) ---
             elif mode == 195:
-                # Bit 0 check: -3 is Active, -4 is Standby
-                is_active = (val & 1) > 0
+                status = val & 0xFFFF
+                chA_ok = (status & 256) > 0   # Bit 8
+                chB_ok = (status & 128) > 0   # Bit 7
 
-                if is_active:
-                    return "SYSTEM ACTIVE"
-                elif val == -4:
-                    return "STANDBY (Pin 15 Off)"
+                if status == 65532:
+                    return "ALL OFF"
+                if chA_ok and chB_ok:
+                    return "A + B ACTIVE"
+                elif chB_ok:
+                    return "B ACTIVE"
+                elif chA_ok:
+                    return "A ACTIVE"
                 else:
                     return "ALL OFF"
-
-            else:
-                return f"Unknown Mode: {mode}"
-
         except Exception as e:
             # This is where your 'got float' error was being caught
             return f"READY Error: {e}"
