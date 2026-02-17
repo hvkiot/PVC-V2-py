@@ -131,8 +131,8 @@ class Characteristic(dbus.service.Object):
                         return
 
                     success = self.pam_controller.change_pam_ain_mode(
-                        mode_type, channel)
-                    result = f"AIN{channel} set to {mode_type}: {'✅ SUCCESS' if success else '❌ FAILED'}"
+                        mode_type[0], channel)
+                    result = f"AIN{channel} set to {mode_type[0]}: {'✅ SUCCESS' if success else '❌ FAILED'}"
                     print(f"✅ {result}")
 
                 except Exception as e:
