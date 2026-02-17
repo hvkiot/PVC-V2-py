@@ -219,7 +219,7 @@ class PAMController:
         resp = self.cmd("ENABLE_B")
         return self.extract_bool(resp)
 
-    def change_pam_function_safe(self, new_mode):
+    def change_pam_function(self, new_mode):
         """
         Safely changes PAM Function Mode (195/196) without Power Cycle.
 
