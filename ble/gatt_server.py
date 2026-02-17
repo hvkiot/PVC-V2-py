@@ -174,12 +174,35 @@ class Characteristic(dbus.service.Object):
                 print(f"📌 Using last mode: {target_mode} for AIN command")
 
             # --- MODE-BASED CONSTRAINTS ---
-            if cmd_type == "set_ain_mode":
-                mode_type = cmd_info[1]
+            if cmd_type == "change_mode":
+                # Store this mode for future AIN commands
+                self.last_mode_command = target_mode
 
-                # Strip 'S' if present (for VOLTAGES/CURRENTS)
-                if mode_type.endswith('S'):
-                    mode_type = mode_type[:-1]
+                # Set lock to pause main loop
+                self.write_lock.set()
+
+                def execute_mode_command():
+                    try:
+                        success = self.pam_controller.change_pam_function(
+                            target_mode)
+                        result = f"Mode {target_mode}: {'✅ SUCCESS' if success else '❌ FAILED'}"
+                        print(f"✅ {result}")
+
+                        # Reset channel toggle for mode 196
+                        if target_mode == 196 and success:
+                            self.last_ain_channel = "A"
+
+                    except Exception as e:
+                        print(f"❌ Command execution error: {e}")
+                    finally:
+                        self.write_lock.clear()
+
+                # Run mode command in thread
+                threading.Thread(target=execute_mode_command,
+                                 daemon=True).start()
+
+            elif cmd_type == "set_ain_mode":
+                mode_type = cmd_info[1]
 
                 if target_mode == 195:
                     # Mode 195: Only A channel available
@@ -210,8 +233,8 @@ class Characteristic(dbus.service.Object):
                             return
 
                         success = self.pam_controller.change_pam_ain_mode(
-                            mode_type, channel)
-                        result = f"AIN{channel} set to {mode_type}: {'✅ SUCCESS' if success else '❌ FAILED'}"
+                            mode_type[0], channel)
+                        result = f"AIN{channel} set to {mode_type[0]}: {'✅ SUCCESS' if success else '❌ FAILED'}"
                         print(f"✅ {result}")
 
                     except Exception as e:
@@ -221,33 +244,6 @@ class Characteristic(dbus.service.Object):
 
                 # Run AIN command in thread
                 threading.Thread(target=execute_ain_command,
-                                 daemon=True).start()
-
-            elif cmd_type == "change_mode":
-                # Store this mode for future AIN commands
-                self.last_mode_command = target_mode
-
-                # Set lock to pause main loop
-                self.write_lock.set()
-
-                def execute_mode_command():
-                    try:
-                        success = self.pam_controller.change_pam_function(
-                            target_mode)
-                        result = f"Mode {target_mode}: {'✅ SUCCESS' if success else '❌ FAILED'}"
-                        print(f"✅ {result}")
-
-                        # Reset channel toggle for mode 196
-                        if target_mode == 196 and success:
-                            self.last_ain_channel = "A"
-
-                    except Exception as e:
-                        print(f"❌ Command execution error: {e}")
-                    finally:
-                        self.write_lock.clear()
-
-                # Run mode command in thread
-                threading.Thread(target=execute_mode_command,
                                  daemon=True).start()
 
         except Exception as e:
