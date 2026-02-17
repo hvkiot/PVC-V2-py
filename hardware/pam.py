@@ -234,6 +234,14 @@ class PAMController:
 
     # ------------ write commands ----------
 
+    def write_current(self, value, channel='A'):
+        """
+        Writes the current value to the PAM.
+        """
+        cmd = f"CURRENT:{channel.upper()} {value}"
+        self.cmd(cmd)
+        return True
+
     def write_ain_mode(self, mode, channel='A'):
         """
         Writes the input mode to the PAM.
@@ -319,4 +327,47 @@ class PAMController:
             return resp == unit
         except Exception as e:
             print(f"Error in change_pam_ain_mode: {e}")
+            return False
+
+    def set_current_value(self, value, channel):
+        """
+        Set current value for A or B channel.
+
+        Args:
+            value: Current value (int or float)
+            channel: 'A' or 'B'
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            # Validate channel
+            if channel.upper() not in ['A', 'B']:
+                print(f"❌ Invalid channel: {channel}")
+                return False
+
+            # Validate value range (500-2600)
+            if not (500 <= value <= 2600):
+                print(f"❌ Value {value} is out of range (500mA-2600mA)")
+                return False
+
+             # Flush before starting
+            self.ser.reset_input_buffer()
+
+            # Send AINA_MODE command (correct one!)
+            self.write_current(value, channel)
+            time.sleep(0.5)
+
+            # Save
+            self.save_pam_settings()
+            time.sleep(3.0)  # Wait for EEPROM write
+
+            # Verify
+            self.ser.reset_input_buffer()
+            resp = self.get_current_status(channel)
+
+            return resp == value
+
+        except Exception as e:
+            print(f"❌ Error setting current: {e}")
             return False

@@ -202,14 +202,22 @@ class Characteristic(dbus.service.Object):
                 # AIN mode settings - mobile only sends VOLTAGE or CURRENT
                 "VOLTAGE": ("set_ain_mode", "Voltage"),
                 "CURRENT": ("set_ain_mode", "Current"),
+
+                # Current status requests
+                "CUR:": ("set_current", "A"),
+                "CURA:": ("set_current", "A"),
+                "CURB:": ("set_current", "B"),
             }
+            cmd_parts = received.split(':')
+            base_cmd = cmd_parts[0]
+            cmd_value = cmd_parts[1] if len(cmd_parts) > 1 else None
 
             # Check if command exists
-            if received not in COMMANDS:
+            if base_cmd not in COMMANDS:
                 print(f"❌ Unknown command: {received}")
                 return
 
-            cmd_info = COMMANDS[received]
+            cmd_info = COMMANDS[base_cmd]
             cmd_type = cmd_info[0]
 
             # Initialize variables
@@ -288,6 +296,50 @@ class Characteristic(dbus.service.Object):
                 # Process AIN command immediately if mode is already set
                 target_mode = self.last_mode_command
                 self._process_ain_command(mode_type, target_mode)
+
+            elif cmd_type == "set_current":
+                channel = cmd_info[1]
+
+                # Check if we have a value
+                if cmd_value is None:
+                    print("❌ No current value provided")
+                    return
+
+                try:
+                    value = int(float(cmd_value))  # Handle both int and float
+
+                    # Optional: Add range validation
+                    if value < 0 or value > 5000:  # Adjust range as needed
+                        print(f"❌ Current value {value} out of range")
+                        return
+
+                    # Set lock for current command
+                    self.write_lock.set()
+
+                    def execute_current_command():
+                        try:
+                            success = self.pam_controller.set_current_value(
+                                value, channel)
+                            result = f"SET CUR{channel}={value}: {'✅' if success else '❌'}"
+                            print(f"✅ {result}")
+
+                            # Optional: Read back and confirm
+                            if success:
+                                time.sleep(0.1)
+                                read_value = self.pam_controller.get_current_value(
+                                    channel)
+                                print(f"📊 Read back: {read_value}")
+
+                        except Exception as e:
+                            print(f"❌ Current command error: {e}")
+                        finally:
+                            self.write_lock.clear()
+
+                    threading.Thread(
+                        target=execute_current_command, daemon=True).start()
+
+                except ValueError:
+                    print(f"❌ Invalid current value: {cmd_value}")
 
         except Exception as e:
             print(f"❌ BLE Write error: {e}")
