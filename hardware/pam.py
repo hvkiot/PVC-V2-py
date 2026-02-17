@@ -257,26 +257,58 @@ class PAMController:
         try:
             # Send FUNCTION command
             self.ser.reset_input_buffer()
-            self.cmd(f"FUNCTION {new_mode}")
+            self.read_function()
             time.sleep(0.5)
 
             # Save to EEPROM
             self.ser.reset_input_buffer()
-            self.cmd("SAVE")
+            self.save_pam_settings()
             print("⏳ Waiting for EEPROM write (3s)...")
             time.sleep(3.0)
 
             # Verification (as you already have)
-            for attempt in range(1, 10):
-                self.ser.reset_input_buffer()
-                resp = self.cmd("RX1:FUNCTION")
-                # ... your parsing logic ...
-                if verified:
-                    return True
+            for attempt in range(1, 10):  # Increased attempts to 10
+                self.ser.reset_input_buffer()  # CRITICAL: Clear old status messages like -4.0
+
+                # Request current function
+                response = self.read_function()
+
+                # CLEAN & PARSE: Handle "196.0", "196", or garbage
+                try:
+                    if response:
+                        # Extract number using regex (handles "196.0" or "FUNCTION 196")
+                        import re
+                        match = re.search(r"(\d+(\.\d+)?)", str(response))
+                        if match:
+                            val_float = float(match.group(1))
+                            val_int = int(val_float)  # Converts 196.0 -> 196
+
+                            if val_int == new_mode:
+                                print(
+                                    f"✅ SUCCESS: Board Confirmed Function {val_int}")
+                                return True
+
+                            print(
+                                f"   ⚠️ Attempt {attempt}: Read '{val_int}' (Expected {new_mode})...")
+                        else:
+                            print(
+                                f"   ⚠️ Attempt {attempt}: Garbage data '{response}'...")
+                    else:
+                        print(f"   ⚠️ Attempt {attempt}: No response...")
+
+                except Exception as parse_err:
+                    print(f"   ⚠️ Parsing error: {parse_err}")
+
+                # Retry Logic
+                time.sleep(1.0)
+
+                # If stuck after 4 tries, re-send SAVE (The "Kick")
                 if attempt == 4:
-                    self.cmd("SAVE")   # Kick the board again
+                    print("   -> Re-sending SAVE to nudge the processor...")
+                    self.save_pam_settings()
                     time.sleep(1.0)
-            print("❌ Verification failed.")
+
+            print("❌ TIMEOUT: Verification failed.")
             return False
 
         except Exception as e:
