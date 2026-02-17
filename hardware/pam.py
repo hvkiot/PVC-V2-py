@@ -138,7 +138,6 @@ class PAMController:
         try:
             # Send command and get response
             response = self.read_status_value()
-            print(f"READYA: {response}")
             # Extract number using regex
             match = re.search(r"READYA\s+(-?\d+)", response, re.IGNORECASE)
             if match:
@@ -158,7 +157,8 @@ class PAMController:
         try:
             response = self.read_status_value()
             match = re.search(r"READYA\s+(-?\d+)", response, re.IGNORECASE)
-
+            print(f"READYA: {response}")
+    
             if match:
                 val = int(match.group(1))
                 mode = self.read_function()  # Call once and store
