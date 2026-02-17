@@ -139,7 +139,11 @@ def main_loop(state, pam, dwin, write_lock):
                     ENABLED_B=enabled_b,
                     CURRENT_A_STATUS=current_a_status,
                     CURRENT_B_STATUS=current_b_status,
+                    CURRENT_STATUS=current_a_status
                 )
+                print(state['CURRENT_A_STATUS'])
+                print(state['CURRENT_B_STATUS'])
+                print(state['CURRENT_STATUS'])
 
             # ---------------- FUNCTION 195 ----------------
             elif func == 195:
