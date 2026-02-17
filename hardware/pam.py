@@ -219,77 +219,107 @@ class PAMController:
         resp = self.cmd("ENABLE_B")
         return self.extract_bool(resp)
 
+    # ------------ write commands ----------
+
+    def write_function_mode(self, mode):
+        """
+        Writes the function mode to the PAM.
+        """
+        self.cmd(f"FUNCTION_MODE {mode}")
+        return True
+
+    def save_pam_settings(self):
+        """
+        Saves the PAM settings to the EEPROM.
+        """
+        self.cmd("SAVE")
+        return True
+
     def change_pam_function(self, new_mode):
         """
         Safely changes PAM Function Mode (195/196) without Power Cycle.
-
-        Args:
-            new_mode (int): 195 or 196
         """
+        # 1. Validate Input
         if new_mode not in [195, 196]:
             print(f"❌ Invalid mode: {new_mode}")
             return False
 
-        print(
-            f"🔄 Switching to Mode {new_mode} (NO POWER CYCLE STRATEGY)...")
+        print(f"🔄 Switching to Mode {new_mode} (NO POWER CYCLE STRATEGY)...")
 
         try:
-            # 1. SAFETY CHECK: PIN 15 MUST BE OFF
-            # The documentation states switching happens in "protected conditions" [Source 40].
+            # 2. Safety Check: PIN 15 must be OFF [Source: 40]
             self.ser.reset_input_buffer()
-            # status = self.cmd("RX1:READYA")
+            status = self.get_pin_15_status()
+            if status:
+                print("❌ SAFETY STOP: PIN 15 is ON. Disable the machine first!")
+                return False
 
-            # # Check if status indicates Active (Negative number)
-            # if status and "-" in str(status):
-            #     print("❌ SAFETY STOP: PIN 15 is ON. Disable the machine first!")
-            #     return False
-
-            # 2. SEND FUNCTION COMMAND
-            # This puts the board into "Inconsistent Data" mode (Blinking LEDs) [Source 40].
+            # 3. Send Function Command (Triggers 'Inconsistent Data' / Blinking)
+            self.ser.reset_input_buffer()
             print(f"-> Sending: FUNCTION {new_mode}")
-            self.cmd(f"FUNCTION {new_mode}")
+            write_status = self.write_function_mode(new_mode)
+            if not write_status:
+                print("❌ Failed to write function mode")
+                return False
             time.sleep(0.5)
 
-            # 3. CRITICAL SAVE SEQUENCE
-            # We send SAVE to write new defaults. Since we can't reboot,
-            # we must ensure this command is processed perfectly.
+            # 4. Critical Save (Writes Defaults to EEPROM) [Source: 70, 106]
+            self.ser.reset_input_buffer()
             print("-> Sending: SAVE (Writing to EEPROM...)")
-            self.cmd("SAVE")
+            save_status = self.save_pam_settings()
+            if not save_status:
+                print("❌ Failed to save PAM settings")
+                return False
 
-            # CRITICAL WAIT: The board is now rebuilding the parameter table.
-            # Do not touch it for 3 seconds.
+            # WAIT: The board needs time to rebuild the parameter table
             print("⏳ Waiting for internal memory rebuild (3s)...")
             time.sleep(3.0)
 
-            # 4. VERIFICATION RETRY LOOP
-            # Instead of failing immediately on 'None', we try 5 times.
-            # The board might be slow to respond after a deep reset.
+            # 5. Verification Loop (Robust)
             print("🔄 Verifying new mode...")
 
-            for attempt in range(1, 6):
-                # Flush garbage data (like your '-24.0' error)
-                self.ser.reset_input_buffer()
+            for attempt in range(1, 10):  # Increased attempts to 10
+                self.ser.reset_input_buffer()  # CRITICAL: Clear old status messages like -4.0
 
-                # Ask for the function
-                verify = self.read_function()
+                # Request current function
+                response = self.cmd("RX1:FUNCTION")
 
-                # Check if we got a valid integer matching the new mode
-                if verify and str(verify).strip() == str(new_mode):
-                    print(
-                        f"✅ SUCCESS: Board confirmed Function {new_mode}")
-                    return True
+                # CLEAN & PARSE: Handle "196.0", "196", or garbage
+                try:
+                    if response:
+                        # Extract number using regex (handles "196.0" or "FUNCTION 196")
+                        import re
+                        match = re.search(r"(\d+(\.\d+)?)", str(response))
+                        if match:
+                            val_float = float(match.group(1))
+                            val_int = int(val_float)  # Converts 196.0 -> 196
 
-                print(
-                    f"   ⚠️ Attempt {attempt}/5: Board replied '{verify}'. Retrying...")
+                            if val_int == new_mode:
+                                print(
+                                    f"✅ SUCCESS: Board Confirmed Function {val_int}")
+                                return True
+
+                            print(
+                                f"   ⚠️ Attempt {attempt}: Read '{val_int}' (Expected {new_mode})...")
+                        else:
+                            print(
+                                f"   ⚠️ Attempt {attempt}: Garbage data '{response}'...")
+                    else:
+                        print(f"   ⚠️ Attempt {attempt}: No response...")
+
+                except Exception as parse_err:
+                    print(f"   ⚠️ Parsing error: {parse_err}")
+
+                # Retry Logic
                 time.sleep(1.0)
 
-                # OPTIONAL: If it fails 3 times, send SAVE again just in case
-                if attempt == 3:
-                    print("   -> Resending SAVE command to be sure...")
+                # If stuck after 4 tries, re-send SAVE (The "Kick")
+                if attempt == 4:
+                    print("   -> Re-sending SAVE to nudge the processor...")
                     self.cmd("SAVE")
                     time.sleep(1.0)
 
-            print("❌ TIMEOUT: Board did not confirm the new mode.")
+            print("❌ TIMEOUT: Verification failed.")
             return False
 
         except Exception as e:
