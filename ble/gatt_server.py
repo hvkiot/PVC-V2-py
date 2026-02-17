@@ -154,75 +154,101 @@ class Characteristic(dbus.service.Object):
             cmd_info = COMMANDS[received]
             cmd_type = cmd_info[0]
 
-            # --- MODE-BASED CONSTRAINTS ---
-            # Get current mode from PAM controller
-            current_mode = COMMANDS[received][1]
+            # Initialize variables
+            channel = None
+            mode_type = None
+            # This will store the mode from command (195/196)
+            target_mode = None
 
+            # Check if this is a mode change command
+            if cmd_type == "change_mode":
+                target_mode = cmd_info[1]
+                print(f"📌 Mode change command received: {target_mode}")
+            else:
+                # For AIN commands, we need to know which mode we're operating in
+                # You need to get this from somewhere - maybe stored from last mode command?
+                if not hasattr(self, 'last_mode_command'):
+                    self.last_mode_command = 195  # Default
+
+                target_mode = self.last_mode_command
+                print(f"📌 Using last mode: {target_mode} for AIN command")
+
+            # --- MODE-BASED CONSTRAINTS ---
             if cmd_type == "set_ain_mode":
                 mode_type = cmd_info[1]
 
-                if current_mode == 195:
+                # Strip 'S' if present (for VOLTAGES/CURRENTS)
+                if mode_type.endswith('S'):
+                    mode_type = mode_type[:-1]
+
+                if target_mode == 195:
                     # Mode 195: Only A channel available
                     channel = "A"
-                    print(f"📌 Mode 195: Setting AIN A to {mode_type}")
+                    print(
+                        f"📌 Mode 195 constraint: Setting AIN A to {mode_type}")
 
-                elif current_mode == 196:
+                elif target_mode == 196:
                     # Mode 196: Both channels available
-                    # Since mobile only sends one command, we need to track which channel to set
-                    # Option 1: Track last channel used
+                    # Track last channel used
                     if not hasattr(self, 'last_ain_channel'):
                         self.last_ain_channel = "A"  # Default to A first
 
                     # Toggle between A and B
                     channel = self.last_ain_channel
                     self.last_ain_channel = "B" if self.last_ain_channel == "A" else "A"
-                    print(f"📌 Mode 196: Setting AIN {channel} to {mode_type}")
+                    print(
+                        f"📌 Mode 196 constraint: Setting AIN {channel} to {mode_type}")
 
-                elif current_mode == 197:
-                    print(f"❌ AIN commands not available in Mode 197 (Encoder mode)")
-                    return
-            else:
-                # For mode change commands
-                channel = None
-                mode_type = None
+                # Set lock to pause main loop
+                self.write_lock.set()
 
-            # Set lock to pause main loop
-            self.write_lock.set()
+                def execute_ain_command():
+                    try:
+                        # Make sure channel is defined
+                        if channel is None:
+                            print("❌ No channel assigned for this mode")
+                            return
 
-            def execute_command():
-                try:
-                    result = None
-
-                    if cmd_type == "change_mode":
-                        new_mode = cmd_info[1]
-                        success = self.pam_controller.change_pam_function(
-                            new_mode)
-                        result = f"Mode {new_mode}: {'✅ SUCCESS' if success else '❌ FAILED'}"
-
-                        # Update current mode on successful change
-                        if success:
-                            self.current_pam_mode = new_mode
-                            # Reset channel toggle for mode 196
-                            if new_mode == 196:
-                                self.last_ain_channel = "A"
-
-                    elif cmd_type == "set_ain_mode":
-                        mode_type = cmd_info[1]
                         success = self.pam_controller.change_pam_ain_mode(
-                            mode_type[0], channel)
-                        result = f"AIN{channel} set to {mode_type[0]}: {'✅ SUCCESS' if success else '❌ FAILED'}"
-
-                    if result:
+                            mode_type, channel)
+                        result = f"AIN{channel} set to {mode_type}: {'✅ SUCCESS' if success else '❌ FAILED'}"
                         print(f"✅ {result}")
 
-                except Exception as e:
-                    print(f"❌ Command execution error: {e}")
-                finally:
-                    # Always clear lock when done
-                    self.write_lock.clear()
+                    except Exception as e:
+                        print(f"❌ Command execution error: {e}")
+                    finally:
+                        self.write_lock.clear()
 
-            # Run in thread
-            threading.Thread(target=execute_command, daemon=True).start()
+                # Run AIN command in thread
+                threading.Thread(target=execute_ain_command,
+                                 daemon=True).start()
+
+            elif cmd_type == "change_mode":
+                # Store this mode for future AIN commands
+                self.last_mode_command = target_mode
+
+                # Set lock to pause main loop
+                self.write_lock.set()
+
+                def execute_mode_command():
+                    try:
+                        success = self.pam_controller.change_pam_function(
+                            target_mode)
+                        result = f"Mode {target_mode}: {'✅ SUCCESS' if success else '❌ FAILED'}"
+                        print(f"✅ {result}")
+
+                        # Reset channel toggle for mode 196
+                        if target_mode == 196 and success:
+                            self.last_ain_channel = "A"
+
+                    except Exception as e:
+                        print(f"❌ Command execution error: {e}")
+                    finally:
+                        self.write_lock.clear()
+
+                # Run mode command in thread
+                threading.Thread(target=execute_mode_command,
+                                 daemon=True).start()
 
         except Exception as e:
             print(f"❌ BLE Write error: {e}")
