@@ -96,6 +96,60 @@ class Characteristic(dbus.service.Object):
         data = [dbus.Byte(b) for b in text.encode("utf-8")]
         self.PropertiesChanged(GATT_CHRC_IFACE, {"Value": data}, [])
 
+    def _process_ain_command(self, mode_type, target_mode):
+        """Helper method to process AIN commands"""
+        try:
+            channel = None
+
+            if target_mode == 195:
+                # Mode 195: Only A channel available
+                channel = "A"
+                print(f"📌 Mode 195: Setting AIN A to {mode_type}")
+
+            elif target_mode == 196:
+                # Mode 196: Both channels available
+                # Track last channel used
+                if not hasattr(self, 'last_ain_channel'):
+                    self.last_ain_channel = "A"  # Default to A first
+
+                # Toggle between A and B
+                channel = self.last_ain_channel
+                self.last_ain_channel = "B" if self.last_ain_channel == "A" else "A"
+                print(f"📌 Mode 196: Setting AIN {channel} to {mode_type}")
+
+            # Set lock for AIN command
+            self.write_lock.set()
+
+            def execute_ain_command():
+                try:
+                    if channel is None:
+                        print("❌ No channel assigned for this mode")
+                        return
+
+                    success = self.pam_controller.change_pam_ain_mode(
+                        mode_type, channel)
+                    result = f"AIN{channel} set to {mode_type}: {'✅ SUCCESS' if success else '❌ FAILED'}"
+                    print(f"✅ {result}")
+
+                except Exception as e:
+                    print(f"❌ AIN command execution error: {e}")
+                finally:
+                    self.write_lock.clear()
+
+            threading.Thread(target=execute_ain_command, daemon=True).start()
+
+        except Exception as e:
+            print(f"❌ Error in _process_ain_command: {e}")
+            self.write_lock.clear()
+
+    @dbus.service.method(GATT_CHRC_IFACE)
+    def StartNotify(self):
+        self.notifying = True
+
+    @dbus.service.method(GATT_CHRC_IFACE)
+    def StopNotify(self):
+        self.notifying = False
+
     # D-Bus method overrides
     @dbus.service.method(PROP_IFACE, in_signature="ss", out_signature="v")
     def Get(self, interface, prop):
@@ -157,40 +211,48 @@ class Characteristic(dbus.service.Object):
             # Initialize variables
             channel = None
             mode_type = None
-            # This will store the mode from command (195/196)
             target_mode = None
+            pending_ain_commands = []  # Queue for AIN commands after mode change
 
             # Check if this is a mode change command
             if cmd_type == "change_mode":
                 target_mode = cmd_info[1]
                 print(f"📌 Mode change command received: {target_mode}")
-            else:
-                # For AIN commands, we need to know which mode we're operating in
-                # You need to get this from somewhere - maybe stored from last mode command?
-                if not hasattr(self, 'last_mode_command'):
-                    self.last_mode_command = 195  # Default
-
-                target_mode = self.last_mode_command
-                print(f"📌 Using last mode: {target_mode} for AIN command")
-
-            # --- MODE-BASED CONSTRAINTS ---
-            if cmd_type == "change_mode":
-                # Store this mode for future AIN commands
-                self.last_mode_command = target_mode
 
                 # Set lock to pause main loop
                 self.write_lock.set()
 
                 def execute_mode_command():
                     try:
+                        # Execute mode change first
                         success = self.pam_controller.change_pam_function(
                             target_mode)
                         result = f"Mode {target_mode}: {'✅ SUCCESS' if success else '❌ FAILED'}"
                         print(f"✅ {result}")
 
-                        # Reset channel toggle for mode 196
-                        if target_mode == 196 and success:
-                            self.last_ain_channel = "A"
+                        if success:
+                            # Store the successful mode
+                            self.last_mode_command = target_mode
+
+                            # Reset channel toggle for mode 196
+                            if target_mode == 196:
+                                self.last_ain_channel = "A"
+
+                            # Process any pending AIN commands that were queued
+                            if hasattr(self, 'ain_command_queue') and self.ain_command_queue:
+                                print(
+                                    f"📌 Processing {len(self.ain_command_queue)} pending AIN commands...")
+                                for pending_cmd in self.ain_command_queue:
+                                    self._process_ain_command(pending_cmd['mode_type'],
+                                                              pending_cmd['target_mode'])
+                                # Clear the queue after processing
+                                self.ain_command_queue = []
+                        else:
+                            # Mode change failed, clear any pending commands
+                            if hasattr(self, 'ain_command_queue'):
+                                print(
+                                    "❌ Mode change failed, clearing AIN command queue")
+                                self.ain_command_queue = []
 
                     except Exception as e:
                         print(f"❌ Command execution error: {e}")
@@ -204,59 +266,34 @@ class Characteristic(dbus.service.Object):
             elif cmd_type == "set_ain_mode":
                 mode_type = cmd_info[1]
 
-                if target_mode == 195:
-                    # Mode 195: Only A channel available
-                    channel = "A"
+                # Strip 'S' if present (for VOLTAGES/CURRENTS)
+                if mode_type.endswith('S'):
+                    mode_type = mode_type[:-1]
+
+                # Check if we have a successful mode change yet
+                if not hasattr(self, 'last_mode_command'):
                     print(
-                        f"📌 Mode 195 constraint: Setting AIN A to {mode_type}")
+                        "⚠️ No mode set yet. Queueing AIN command for after mode change...")
 
-                elif target_mode == 196:
-                    # Mode 196: Both channels available
-                    # Track last channel used
-                    if not hasattr(self, 'last_ain_channel'):
-                        self.last_ain_channel = "A"  # Default to A first
+                    # Initialize queue if needed
+                    if not hasattr(self, 'ain_command_queue'):
+                        self.ain_command_queue = []
 
-                    # Toggle between A and B
-                    channel = self.last_ain_channel
-                    self.last_ain_channel = "B" if self.last_ain_channel == "A" else "A"
-                    print(
-                        f"📌 Mode 196 constraint: Setting AIN {channel} to {mode_type}")
+                    # Queue this AIN command
+                    self.ain_command_queue.append({
+                        'mode_type': mode_type,
+                        'target_mode': None  # Will use whatever mode is active
+                    })
+                    return
 
-                # Set lock to pause main loop
-                self.write_lock.set()
-
-                def execute_ain_command():
-                    try:
-                        # Make sure channel is defined
-                        if channel is None:
-                            print("❌ No channel assigned for this mode")
-                            return
-
-                        success = self.pam_controller.change_pam_ain_mode(
-                            mode_type[0], channel)
-                        result = f"AIN{channel} set to {mode_type[0]}: {'✅ SUCCESS' if success else '❌ FAILED'}"
-                        print(f"✅ {result}")
-
-                    except Exception as e:
-                        print(f"❌ Command execution error: {e}")
-                    finally:
-                        self.write_lock.clear()
-
-                # Run AIN command in thread
-                threading.Thread(target=execute_ain_command,
-                                 daemon=True).start()
+                # Process AIN command immediately if mode is already set
+                target_mode = self.last_mode_command
+                self._process_ain_command(mode_type, target_mode)
 
         except Exception as e:
             print(f"❌ BLE Write error: {e}")
-            self.write_lock.clear()
-
-    @dbus.service.method(GATT_CHRC_IFACE)
-    def StartNotify(self):
-        self.notifying = True
-
-    @dbus.service.method(GATT_CHRC_IFACE)
-    def StopNotify(self):
-        self.notifying = False
+            if hasattr(self, 'write_lock'):
+                self.write_lock.clear()
 
 
 class DataCharacteristic(Characteristic):
