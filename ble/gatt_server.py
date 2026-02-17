@@ -184,7 +184,6 @@ class DataCharacteristic(Characteristic):
                         f"READY:{data['READY']},"
                         f"PIN15:{data['PIN15']},"
                         f"PIN6:{data['PIN6']},"
-                        f"READY_LED:{data['READY_LED']},"
                         f"ENABLED_B:{data['ENABLED_B']}\n"
                     )
                     self.value = [dbus.Byte(b) for b in packet.encode("utf-8")]

@@ -68,7 +68,6 @@ def main_loop(state, pam, dwin):
                 ready = safe_execution(pam.get_ready_status)
                 pin15 = safe_execution(pam.get_pin_15_status)
                 pin6 = safe_execution(pam.get_pin_6_status)
-                ready_led = safe_execution(pam.get_ready_led_status)
                 enabled_b = safe_execution(pam.get_enabled_b_status)
 
                 # Update display - with safe execution for each operation
@@ -128,7 +127,6 @@ def main_loop(state, pam, dwin):
                     IB=ib,
                     MODE=mode_a if mode_a is not None else "UNKNOWN",
                     READY=ready,
-                    READY_LED=ready_led,
                     PIN15=pin15,
                     PIN6=pin6,
                     ENABLED_B=enabled_b,
@@ -143,7 +141,6 @@ def main_loop(state, pam, dwin):
                 ready = safe_execution(pam.get_ready_status)
                 pin15 = safe_execution(pam.get_pin_15_status)
                 pin6 = safe_execution(pam.get_pin_6_status)
-                ready_led = safe_execution(pam.get_ready_led_status)
                 enabled_b = safe_execution(pam.get_enabled_b_status)
 
                 if mode_a:
@@ -195,7 +192,6 @@ def main_loop(state, pam, dwin):
                     IB=ib_val,
                     MODE=mode_a if mode_a is not None else "UNKNOWN",
                     READY=ready,
-                    READY_LED=ready_led,
                     PIN15=pin15,
                     PIN6=pin6,
                     ENABLED_B=enabled_b,
