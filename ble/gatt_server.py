@@ -209,8 +209,11 @@ class Characteristic(dbus.service.Object):
                 "CURB:": ("set_current", "B"),
             }
             cmd_parts = received.split(':')
+            print(f"cmd_parts: {cmd_parts}")
             base_cmd = cmd_parts[0]
+            print(f"base_cmd: {base_cmd}")
             cmd_value = cmd_parts[1] if len(cmd_parts) > 1 else None
+            print(f"cmd_value: {cmd_value}")
 
             # Check if command exists
             if base_cmd not in COMMANDS:
