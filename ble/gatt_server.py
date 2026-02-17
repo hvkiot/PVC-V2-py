@@ -221,7 +221,9 @@ class Characteristic(dbus.service.Object):
             # Check if this is a mode change command
             if cmd_type == "change_mode":
                 target_mode = cmd_info[1]
-                if current_mode == target_mode:
+                print(f"Current mode: {current_mode}")
+                print(f"Target mode: {target_mode}")
+                if current_mode == cmd_info[1]:
                     print(f"❌ Mode {target_mode} is already active")
                     return
                 print(f"📌 Mode change command received: {target_mode}")
