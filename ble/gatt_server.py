@@ -117,6 +117,10 @@ class Characteristic(dbus.service.Object):
                 self.last_ain_channel = "B" if self.last_ain_channel == "A" else "A"
                 print(f"📌 Mode 196: Setting AIN {channel} to {mode_type}")
 
+            else:
+                print(f"❌ Unknown target mode: {target_mode}")
+                return
+
             # Set lock for AIN command
             self.write_lock.set()
 
@@ -243,8 +247,9 @@ class Characteristic(dbus.service.Object):
                                 print(
                                     f"📌 Processing {len(self.ain_command_queue)} pending AIN commands...")
                                 for pending_cmd in self.ain_command_queue:
+                                    # Pass the actual mode that was just set
                                     self._process_ain_command(pending_cmd['mode_type'],
-                                                              pending_cmd['target_mode'])
+                                                              self.last_mode_command)  # FIXED: Use last_mode_command
                                 # Clear the queue after processing
                                 self.ain_command_queue = []
                         else:
@@ -279,10 +284,10 @@ class Characteristic(dbus.service.Object):
                     if not hasattr(self, 'ain_command_queue'):
                         self.ain_command_queue = []
 
-                    # Queue this AIN command
+                    # Queue this AIN command - store the mode_type only
                     self.ain_command_queue.append({
-                        'mode_type': mode_type,
-                        'target_mode': None  # Will use whatever mode is active
+                        'mode_type': mode_type
+                        # No target_mode here - will use the mode after change
                     })
                     return
 
