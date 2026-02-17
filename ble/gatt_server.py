@@ -321,7 +321,10 @@ class DataCharacteristic(Characteristic):
                         f"READY:{data['READY']},"
                         f"PIN15:{data['PIN15']},"
                         f"PIN6:{data['PIN6']},"
-                        f"ENABLED_B:{data['ENABLED_B']}\n"
+                        f"ENABLED_B:{data['ENABLED_B']},"
+                        f"CURRENT_A_STATUS:{data['CURRENT_A_STATUS']},"
+                        f"CURRENT_B_STATUS:{data['CURRENT_B_STATUS']},"
+                        f"CURRENT_STATUS:{data['CURRENT_STATUS']}\n"
                     )
                     self.value = [dbus.Byte(b) for b in packet.encode("utf-8")]
                     self._notify_value(packet)
