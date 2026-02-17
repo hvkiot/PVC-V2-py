@@ -96,12 +96,6 @@ class Characteristic(dbus.service.Object):
         data = [dbus.Byte(b) for b in text.encode("utf-8")]
         self.PropertiesChanged(GATT_CHRC_IFACE, {"Value": data}, [])
 
-    def get_current_pam_mode(self):
-        """Get current PAM mode"""
-        if hasattr(self, 'current_pam_mode'):
-            return self.current_pam_mode
-        return 195  # Default mode
-
     # D-Bus method overrides
     @dbus.service.method(PROP_IFACE, in_signature="ss", out_signature="v")
     def Get(self, interface, prop):
@@ -162,7 +156,7 @@ class Characteristic(dbus.service.Object):
 
             # --- MODE-BASED CONSTRAINTS ---
             # Get current mode from PAM controller
-            current_mode = self.get_current_pam_mode()
+            current_mode = COMMANDS[received][1]
 
             if cmd_type == "set_ain_mode":
                 mode_type = cmd_info[1]
