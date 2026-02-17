@@ -225,7 +225,7 @@ class PAMController:
         """
         Writes the function mode to the PAM.
         """
-        self.cmd(f"FUNCTION_MODE {mode}")
+        self.cmd(f"FUNCTION {mode}")
         return True
 
     def save_pam_settings(self):
