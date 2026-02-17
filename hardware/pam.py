@@ -357,7 +357,7 @@ class PAMController:
             print(f"Error in change_pam_ain_mode: {e}")
             return False
 
-    def set_current_value(self, value, channel):
+    def set_current_value(self, value, channel, fun):
         """
         Set current value for A or B channel.
 
@@ -382,8 +382,6 @@ class PAMController:
             # Flush before starting
             self.ser.reset_input_buffer()
 
-            # Get current function mode
-            fun = self.read_function()
             print(
                 f"📌 Current mode: {fun}, setting channel {channel} to {value}mA")
 

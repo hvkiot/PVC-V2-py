@@ -210,7 +210,8 @@ class Characteristic(dbus.service.Object):
             }
             cmd_parts = received.split(':')
             base_cmd = cmd_parts[0]
-            cmd_value = cmd_parts[1] if len(cmd_parts) > 1 else None
+            cmd_value = cmd_parts[1]
+            fun = cmd_parts[2]
 
             # Check if command exists
             if base_cmd not in COMMANDS:
@@ -319,14 +320,14 @@ class Characteristic(dbus.service.Object):
                     def execute_current_command():
                         try:
                             success = self.pam_controller.set_current_value(
-                                value, channel)
+                                value, channel, fun)
                             result = f"SET CUR{channel}={value}: {'✅' if success else '❌'}"
                             print(f"✅ {result}")
 
                             # Optional: Read back and confirm
                             if success:
                                 time.sleep(0.1)
-                                read_value = self.pam_controller.get_current_value(
+                                read_value = self.pam_controller.get_current_status(
                                     channel)
                                 print(f"📊 Read back: {read_value}")
 
