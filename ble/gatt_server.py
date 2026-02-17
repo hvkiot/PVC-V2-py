@@ -214,9 +214,9 @@ class Characteristic(dbus.service.Object):
 
                     elif cmd_type == "set_ain_mode":
                         mode_type = cmd_info[1]
-                        success = self.pam_controller.write_ain_mode(
-                            mode_type, channel)
-                        result = f"AIN {channel} set to {mode_type}: {'✅ SUCCESS' if success else '❌ FAILED'}"
+                        success = self.pam_controller.change_pam_ain_mode(
+                            mode_type[0], channel)
+                        result = f"AIN{channel} set to {mode_type[0]}: {'✅ SUCCESS' if success else '❌ FAILED'}"
 
                     if result:
                         print(f"✅ {result}")
