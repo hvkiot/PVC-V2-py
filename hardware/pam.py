@@ -244,7 +244,7 @@ class PAMController:
 
         # ---- Safety check with retries ----
         for retry in range(3):
-            pin_on = self.get_pin_15_status(confirm_count=2)
+            pin_on = self.get_pin_15_status()
             if not pin_on:
                 break
             print(f"⚠️ Pin 15 ON on attempt {retry+1}, retrying in 0.5s...")
