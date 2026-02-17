@@ -96,6 +96,12 @@ class Characteristic(dbus.service.Object):
         data = [dbus.Byte(b) for b in text.encode("utf-8")]
         self.PropertiesChanged(GATT_CHRC_IFACE, {"Value": data}, [])
 
+    def get_current_pam_mode(self):
+        """Get current PAM mode"""
+        if hasattr(self, 'current_pam_mode'):
+            return self.current_pam_mode
+        return 195  # Default mode
+
     # D-Bus method overrides
     @dbus.service.method(PROP_IFACE, in_signature="ss", out_signature="v")
     def Get(self, interface, prop):
@@ -124,7 +130,7 @@ class Characteristic(dbus.service.Object):
 
     @dbus.service.method(GATT_CHRC_IFACE, in_signature="aya{sv}")
     def WriteValue(self, value, options):
-        """Handle write requests from BLE clients."""
+        """Handle write requests from BLE clients with mode-based constraints."""
         try:
             # Convert bytes to string and clean
             received = bytes(value).decode('utf-8').strip().upper()
@@ -141,16 +147,9 @@ class Characteristic(dbus.service.Object):
                 "195": ("change_mode", 195),
                 "196": ("change_mode", 196),
 
-                # AIN mode settings (case insensitive now)
-                "VOLTAGE": ("set_ain_mode", "Voltage", "A"),
-                "CURRENT": ("set_ain_mode", "Current", "A"),
-                "VOLTAGE_B": ("set_ain_mode", "Voltage", "B"),
-                "CURRENT_B": ("set_ain_mode", "Current", "B"),
-
-                # Quick status commands
-                "STATUS": ("get_status",),
-                "PIN15": ("get_pin", 15),
-                "PIN6": ("get_pin", 6),
+                # AIN mode settings - mobile only sends VOLTAGE or CURRENT
+                "VOLTAGE": ("set_ain_mode", "Voltage"),
+                "CURRENT": ("set_ain_mode", "Current"),
             }
 
             # Check if command exists
@@ -160,6 +159,38 @@ class Characteristic(dbus.service.Object):
 
             cmd_info = COMMANDS[received]
             cmd_type = cmd_info[0]
+
+            # --- MODE-BASED CONSTRAINTS ---
+            # Get current mode from PAM controller
+            current_mode = self.get_current_pam_mode()
+
+            if cmd_type == "set_ain_mode":
+                mode_type = cmd_info[1]
+
+                if current_mode == 195:
+                    # Mode 195: Only A channel available
+                    channel = "A"
+                    print(f"📌 Mode 195: Setting AIN A to {mode_type}")
+
+                elif current_mode == 196:
+                    # Mode 196: Both channels available
+                    # Since mobile only sends one command, we need to track which channel to set
+                    # Option 1: Track last channel used
+                    if not hasattr(self, 'last_ain_channel'):
+                        self.last_ain_channel = "A"  # Default to A first
+
+                    # Toggle between A and B
+                    channel = self.last_ain_channel
+                    self.last_ain_channel = "B" if self.last_ain_channel == "A" else "A"
+                    print(f"📌 Mode 196: Setting AIN {channel} to {mode_type}")
+
+                elif current_mode == 197:
+                    print(f"❌ AIN commands not available in Mode 197 (Encoder mode)")
+                    return
+            else:
+                # For mode change commands
+                channel = None
+                mode_type = None
 
             # Set lock to pause main loop
             self.write_lock.set()
@@ -174,24 +205,18 @@ class Characteristic(dbus.service.Object):
                             new_mode)
                         result = f"Mode {new_mode}: {'✅ SUCCESS' if success else '❌ FAILED'}"
 
+                        # Update current mode on successful change
+                        if success:
+                            self.current_pam_mode = new_mode
+                            # Reset channel toggle for mode 196
+                            if new_mode == 196:
+                                self.last_ain_channel = "A"
+
                     elif cmd_type == "set_ain_mode":
-                        mode_type, channel = cmd_info[1], cmd_info[2]
+                        mode_type = cmd_info[1]
                         success = self.pam_controller.write_ain_mode(
                             mode_type, channel)
                         result = f"AIN {channel} set to {mode_type}: {'✅ SUCCESS' if success else '❌ FAILED'}"
-
-                    elif cmd_type == "get_status":
-                        pin15 = self.pam_controller.get_pin_15_status()
-                        pin6 = self.pam_controller.get_pin_6_status()
-                        result = f"Pin15: {'ON' if pin15 else 'OFF'}, Pin6: {'ON' if pin6 else 'OFF'}"
-
-                    elif cmd_type == "get_pin":
-                        pin_num = cmd_info[1]
-                        if pin_num == 15:
-                            status = self.pam_controller.get_pin_15_status()
-                        else:
-                            status = self.pam_controller.get_pin_6_status()
-                        result = f"Pin{pin_num}: {'ON' if status else 'OFF'}"
 
                     if result:
                         print(f"✅ {result}")
@@ -207,7 +232,7 @@ class Characteristic(dbus.service.Object):
 
         except Exception as e:
             print(f"❌ BLE Write error: {e}")
-            self.write_lock.clear()  # Ensure lock is cleared on error
+            self.write_lock.clear()
 
     @dbus.service.method(GATT_CHRC_IFACE)
     def StartNotify(self):
