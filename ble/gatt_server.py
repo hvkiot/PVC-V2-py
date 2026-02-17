@@ -210,8 +210,8 @@ class Characteristic(dbus.service.Object):
             }
             cmd_parts = received.split(':')
             base_cmd = cmd_parts[0]
-            cmd_value = cmd_parts[1]
-            fun = cmd_parts[2]
+            cmd_value = cmd_parts[1] if len(cmd_parts) > 1 else None
+            fun = cmd_parts[2] if len(cmd_parts) > 2 else None
 
             # Check if command exists
             if base_cmd not in COMMANDS:
