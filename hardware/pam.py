@@ -261,6 +261,12 @@ class PAMController:
                 self.cmd("IB 0")        # set IB to 0
                 time.sleep(0.1)
                 self.save_pam_settings()        # save again
+            elif new_mode == 196:
+                self.cmd("IA 0")
+                time.sleep(0.1)
+                self.cmd("IB 0")
+                time.sleep(0.1)
+                self.save_pam_settings()
 
             return resp == float(new_mode)
         except Exception as e:
