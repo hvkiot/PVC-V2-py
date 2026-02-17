@@ -73,6 +73,8 @@ def main_loop(state, pam, dwin, write_lock):
                 pin15 = safe_execution(pam.get_pin_15_status)
                 pin6 = safe_execution(pam.get_pin_6_status)
                 enabled_b = safe_execution(pam.get_enabled_b_status)
+                current_a_status = safe_execution(pam.get_current_a_status)
+                current_b_status = safe_execution(pam.get_current_b_status)
 
                 # Update display - with safe execution for each operation
                 if mode_a:
@@ -134,6 +136,8 @@ def main_loop(state, pam, dwin, write_lock):
                     PIN15=pin15,
                     PIN6=pin6,
                     ENABLED_B=enabled_b,
+                    CURRENT_A_STATUS=current_a_status,
+                    CURRENT_B_STATUS=current_b_status,
                 )
 
             # ---------------- FUNCTION 195 ----------------
@@ -146,6 +150,7 @@ def main_loop(state, pam, dwin, write_lock):
                 pin15 = safe_execution(pam.get_pin_15_status)
                 pin6 = safe_execution(pam.get_pin_6_status)
                 enabled_b = safe_execution(pam.get_enabled_b_status)
+                current_status = safe_execution(pam.get_current_status)
 
                 if mode_a:
                     safe_execution(
@@ -199,6 +204,9 @@ def main_loop(state, pam, dwin, write_lock):
                     PIN15=pin15,
                     PIN6=pin6,
                     ENABLED_B=enabled_b,
+                    CURRENT_A_STATUS=current_status,
+                    CURRENT_B_STATUS=current_status,
+                    CURRENT_STATUS=current_status,
                 )
 
             else:

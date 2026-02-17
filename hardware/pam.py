@@ -220,6 +220,18 @@ class PAMController:
         resp = self.cmd("ENABLE_B")
         return self.extract_bool(resp)
 
+    def get_current_a_status(self):
+        resp = self.cmd("CURRENT:A")
+        return self.extract_bool(resp)
+
+    def get_current_b_status(self):
+        resp = self.cmd("CURRENT:B")
+        return self.extract_bool(resp)
+
+    def get_current_status(self):
+        resp = self.cmd("CURRENT")
+        return self.extract_bool(resp)
+
     # ------------ write commands ----------
 
     def write_ain_mode(self, mode, channel='A'):
