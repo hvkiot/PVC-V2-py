@@ -281,3 +281,30 @@ class PAMController:
         except Exception as e:
             print(f"Error in change_pam_function: {e}")
             return False
+
+    def change_pam_ain_mode(self, unit, channel):
+        """
+        Changes the PAM AINA mode in 195 or AINA and AINB in 196 and saves settings.
+        """
+        if unit not in ['V', 'C']:
+            return False
+        try:
+            # Flush before starting
+            self.ser.reset_input_buffer()
+
+            # Send AINA_MODE command (correct one!)
+            self.write_ain_mode(unit, channel)
+            time.sleep(0.5)
+
+            # Save
+            self.save_pam_settings()
+            time.sleep(3.0)  # Wait for EEPROM write
+
+            # Verify
+            self.ser.reset_input_buffer()
+            resp = self.read_ain_mode()
+
+            return resp == unit
+        except Exception as e:
+            print(f"Error in change_pam_ain_mode: {e}")
+            return False
