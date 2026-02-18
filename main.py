@@ -279,7 +279,6 @@ def main():
     # Persistent state across restarts
     state = MachineState()
     pam_write_in_progress = threading.Event()
-    ble_service = BLEService()
 
     # BLE server runs in background and will auto-reconnect
     ble_thread_running = False
