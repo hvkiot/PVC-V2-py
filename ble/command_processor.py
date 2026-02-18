@@ -141,6 +141,17 @@ class CommandProcessor:
             success = self.pam.change_pam_function(new_mode)
 
             if success:
+                # IMPORTANT: When switching to 195, ensure both channels have same mode
+                if new_mode == 195:
+                    print("📌 Mode 195: Syncing AIN modes...")
+                    # Read current AINA mode
+                    current_mode = self.pam.read_ain_mode('A')
+                    if current_mode:
+                        # Set AINB to match AINA (even though it's not used in 195)
+                        self.pam.write_ain_mode(current_mode, 'B')
+                        self.pam.save_pam_settings()
+                        print(f"✅ Synced AINB to {current_mode}")
+
                 # Update state
                 self.state.update(FUNC=new_mode)
                 return CommandResult(True, f"Mode changed to {new_mode}")
