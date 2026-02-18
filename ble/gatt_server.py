@@ -168,17 +168,57 @@ class Characteristic(dbus.service.Object):
         elif received == "CURRENT":
             return CommandType.SET_AIN_MODE, {"unit": "C"}
 
-        # Complex commands with parameters
-        elif received.startswith("CUR:"):
-            # Format: CUR:A:195:1500 or CUR:B:196:1500
+        # Mode 195 format: CUR:1500:195
+        if received.startswith("CUR:") and not received.startswith("CURA:") and not received.startswith("CURB:"):
+            # Format: CUR:1500:195
             parts = received.split(':')
-            if len(parts) == 4:
-                _, channel, mode, value = parts
-                return CommandType.SET_CURRENT, {
-                    "channel": channel,
-                    "mode": int(mode),
-                    "value": int(value)
-                }
+            if len(parts) == 3:
+                _, value, mode = parts
+                # Validate mode is 195
+                if int(mode) == 195:
+                    return CommandType.SET_CURRENT, {
+                        "channel": "A",  # Mode 195 always uses channel A
+                        "mode": int(mode),
+                        "value": int(value)
+                    }
+                else:
+                    print(
+                        f"❌ Invalid mode {mode} for CUR: format (expected 195)")
+                    return None, None
+
+        # Mode 196 format: CURA:1600:196
+        elif received.startswith("CURA:"):
+            parts = received.split(':')
+            if len(parts) == 3:
+                _, value, mode = parts
+                # Validate mode is 196
+                if int(mode) == 196:
+                    return CommandType.SET_CURRENT, {
+                        "channel": "A",
+                        "mode": int(mode),
+                        "value": int(value)
+                    }
+                else:
+                    print(
+                        f"❌ Invalid mode {mode} for CURA: format (expected 196)")
+                    return None, None
+
+        # Mode 196 format: CURB:1200:196
+        elif received.startswith("CURB:"):
+            parts = received.split(':')
+            if len(parts) == 3:
+                _, value, mode = parts
+                # Validate mode is 196
+                if int(mode) == 196:
+                    return CommandType.SET_CURRENT, {
+                        "channel": "B",
+                        "mode": int(mode),
+                        "value": int(value)
+                    }
+                else:
+                    print(
+                        f"❌ Invalid mode {mode} for CURB: format (expected 196)")
+                    return None, None
 
         return None, None
 
@@ -334,7 +374,7 @@ def unregister_old_advertisement(bus, adapter_path, adv_path):
 # -------------------------------------------------
 
 
-def run_ble_server(state, pam_controller, write_lock,cmd_processor):
+def run_ble_server(state, pam_controller, write_lock, cmd_processor):
     """Set up and register GATT application and advertisement.
        This function will block; call it in a separate thread."""
     DBusGMainLoop(set_as_default=True)
@@ -349,7 +389,8 @@ def run_ble_server(state, pam_controller, write_lock,cmd_processor):
     # Build GATT app
     app = Application(bus)
     service = Service(bus, 0, SERVICE_UUID, True)
-    ch = DataCharacteristic(bus, 0, service, state, pam_controller, write_lock,cmd_processor)
+    ch = DataCharacteristic(bus, 0, service, state,
+                            pam_controller, write_lock, cmd_processor)
     service.add_characteristic(ch)
     app.add_service(service)
 

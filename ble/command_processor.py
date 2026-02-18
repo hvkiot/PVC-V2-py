@@ -248,39 +248,46 @@ class CommandProcessor:
         try:
             value = cmd.params.get('value')
             channel = cmd.params.get('channel', 'A')
-            mode = cmd.params.get('mode')  # 195 or 196
+            mode = cmd.params.get('mode')
 
             # Validate
-            if not isinstance(value, (int, float)):
+            if not isinstance(value, int):
                 return CommandResult(False, f"Invalid value type: {type(value)}")
 
-            value = int(value)
             if not (500 <= value <= 2600):
                 return CommandResult(False, f"Value {value} out of range (500-2600)")
 
-            print(f"📌 Setting current {channel}={value}mA in mode {mode}")
+            print(
+                f"📌 Setting current - Mode:{mode}, Channel:{channel}, Value:{value}mA")
+
+            # Set transition flag
+            self.state.set_transition(True)
 
             # Use appropriate method based on mode
             if mode == 195:
+                # Mode 195: Use CURRENT command (affects channel A)
                 success = self.pam.set_current_value(value, 'A', str(mode))
-            else:  # 196
-                success = self.pam.set_current_value(value, channel, str(mode))
-
-            if success:
-                # Update state
-                if mode == 195:
+                if success:
                     self.state.update(CURRENT_STATUS=value)
-                else:
+            else:  # 196
+                # Mode 196: Use channel-specific command
+                success = self.pam.set_current_value(value, channel, str(mode))
+                if success:
                     if channel == 'A':
                         self.state.update(CURRENT_A_STATUS=value)
                     else:
                         self.state.update(CURRENT_B_STATUS=value)
 
+            # Clear transition flag
+            self.state.set_transition(False)
+
+            if success:
                 return CommandResult(True, f"Current {channel}={value}mA")
             else:
                 return CommandResult(False, "Failed to set current")
 
         except Exception as e:
+            self.state.set_transition(False)
             return CommandResult(False, f"Current setting error: {e}")
 
     def _handle_save_settings(self, cmd: Command) -> CommandResult:
