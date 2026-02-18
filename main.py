@@ -31,6 +31,8 @@ def main_loop(state, pam, dwin, write_lock):
     loop_count = 0
     mismatch_page_active = False
     vp5100_applied = False
+    last_page_switch = 0  # Add cooldown timer for page 28
+    page_cooldown = 2.0   # Minimum seconds between page switches
 
     while True:
         try:
@@ -81,15 +83,7 @@ def main_loop(state, pam, dwin, write_lock):
 
                 # Switch to page 28
                 if mode_a and mode_b and mode_a != mode_b:
-                    if hasattr(self, 'ble_update_in_progress') and self.ble_update_in_progress:
-                        # Skip page switch during BLE updates
-                        print("⏳ BLE update in progress, delaying page switch")
-                        time.sleep(0.5)
-                        # Recheck after delay
-                        mode_a = pam.read_ain_mode('A')
-                        mode_b = pam.read_ain_mode('B')
-
-                    if mode_a != mode_b:
+                    if now - last_page_switch > page_cooldown:
                         if not mismatch_page_active:
                             dwin.switch_page(28)
                             mismatch_page_active = True
@@ -285,6 +279,7 @@ def main():
     # Persistent state across restarts
     state = MachineState()
     pam_write_in_progress = threading.Event()
+    ble_service = BLEService()
 
     # BLE server runs in background and will auto-reconnect
     ble_thread_running = False
