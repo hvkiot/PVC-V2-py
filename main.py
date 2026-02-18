@@ -13,6 +13,7 @@ from state import MachineState
 from hardware.pam import PAMController
 from hardware.dwin import DWINDisplay
 from ble.gatt_server import run_ble_server
+from ble.command_processor import CommandProcessor, CommandType
 
 
 def safe_execution(func, default=None, error_msg=None):
@@ -25,12 +26,11 @@ def safe_execution(func, default=None, error_msg=None):
         return default
 
 
-def main_loop(state, pam, dwin, write_lock):
+def main_loop(state, pam, dwin, write_lock, cmd_processor):
     """Main processing loop - isolated so it can be restarted."""
     last_mode_check = 0
     loop_count = 0
     mismatch_page_active = False
-    vp5100_applied = False
     last_page_switch = 0  # Add cooldown timer for page 28
     page_cooldown = 2.0   # Minimum seconds between page switches
 
@@ -87,18 +87,26 @@ def main_loop(state, pam, dwin, write_lock):
                         if not mismatch_page_active:
                             dwin.switch_page(28)
                             mismatch_page_active = True
-                            vp5100_applied = False
 
-                        if not vp5100_applied:
-                            sel = dwin.read_vp_5100()
-                            if sel == 0:
-                                pam.cmd("AINA V")
-                                pam.cmd("AINB V")
-                                vp5100_applied = True
-                            elif sel == 1:
-                                pam.cmd("AINA C")
-                                pam.cmd("AINB C")
-                                vp5100_applied = True
+                        sel = dwin.read_vp_5100()
+                        if sel == 0:
+                            cmd_processor.submit(
+                                CommandType.SET_AIN_MODE,
+                                {"unit": "V", "channel": "A"}
+                            )
+                            cmd_processor.submit(
+                                CommandType.SET_AIN_MODE,
+                                {"unit": "V", "channel": "B"}
+                            )
+                        elif sel == 1:
+                            cmd_processor.submit(
+                                CommandType.SET_AIN_MODE,
+                                {"unit": "C", "channel": "A"}
+                            )
+                            cmd_processor.submit(
+                                CommandType.SET_AIN_MODE,
+                                {"unit": "C", "channel": "B"}
+                            )
                         time.sleep(0.1)
                         continue
                     else:
@@ -291,13 +299,14 @@ def main():
             # Initialize hardware with retries built into the classes
             pam = PAMController()
             dwin = DWINDisplay()
+            cmd_processor = CommandProcessor(pam, state)
 
             # Start BLE server only once
             if not ble_thread_running:
                 print("--- Starting BLE server ---")
                 ble_thread = threading.Thread(
                     target=run_ble_server,
-                    args=(state, pam, pam_write_in_progress),
+                    args=(state, pam, pam_write_in_progress, cmd_processor),
                     daemon=True,
                     name="BLE-Thread"
                 )
@@ -308,7 +317,7 @@ def main():
             print("--- System running (press Ctrl+C to stop) ---\n")
 
             # Run the main processing loop
-            main_loop(state, pam, dwin, pam_write_in_progress)
+            main_loop(state, pam, dwin, pam_write_in_progress, cmd_processor)
 
         except KeyboardInterrupt:
             print("\n\n🛑 System shutdown complete")

@@ -68,8 +68,9 @@ class Service(dbus.service.Object):
 
 
 class Characteristic(dbus.service.Object):
-    def __init__(self, bus, index, uuid, flags, service):
+    def __init__(self, bus, index, uuid, flags, service, cmd_processor):
         self.path = service.path + f"/char{index}"
+        self.cmd_processor = cmd_processor
         self.bus = bus
         self.uuid = uuid
         self.flags = flags
@@ -146,6 +147,40 @@ class Characteristic(dbus.service.Object):
             print(f"❌ Error in _process_ain_command: {e}")
             self.write_lock.clear()
 
+    def _parse_command(self, received: str):
+        """
+        Parse incoming BLE commands into structured commands.
+        Returns (CommandType, params) or (None, None) if unknown.
+        """
+        received = received.strip().upper()
+
+        # Simple direct commands
+        if received == "195":
+            return CommandType.CHANGE_MODE, {"mode": 195}
+
+        elif received == "196":
+            return CommandType.CHANGE_MODE, {"mode": 196}
+
+        elif received == "VOLTAGE":
+            return CommandType.SET_AIN_MODE, {"unit": "V"}
+
+        elif received == "CURRENT":
+            return CommandType.SET_AIN_MODE, {"unit": "C"}
+
+        # Complex commands with parameters
+        elif received.startswith("CUR:"):
+            # Format: CUR:A:195:1500 or CUR:B:196:1500
+            parts = received.split(':')
+            if len(parts) == 4:
+                _, channel, mode, value = parts
+                return CommandType.SET_CURRENT, {
+                    "channel": channel,
+                    "mode": int(mode),
+                    "value": int(value)
+                }
+
+        return None, None
+
     @dbus.service.method(GATT_CHRC_IFACE)
     def StartNotify(self):
         self.notifying = True
@@ -182,170 +217,32 @@ class Characteristic(dbus.service.Object):
 
     @dbus.service.method(GATT_CHRC_IFACE, in_signature="aya{sv}")
     def WriteValue(self, value, options):
-        """Handle write requests from BLE clients with mode-based constraints."""
+        """Handle write requests - now much simpler"""
         try:
-            # Convert bytes to string and clean
-            received = bytes(value).decode('utf-8').strip().upper()
-            print(f"BLE Received: '{received}'")
+            # Convert bytes to string
+            received = bytes(value).decode('utf-8').strip()
+            print(f"📱 BLE Received: '{received}'")
 
-            # Quick validation
-            if not received or not hasattr(self, 'pam_controller') or not self.pam_controller:
-                print("❌ PAM controller not available")
-                return
+            # Parse command
+            cmd_type, params = self._parse_command(received)
 
-            # Command mappings
-            COMMANDS = {
-                # Mode changes
-                "195": ("change_mode", 195),
-                "196": ("change_mode", 196),
-
-                # AIN mode settings - mobile only sends VOLTAGE or CURRENT
-                "VOLTAGE": ("set_ain_mode", "Voltage"),
-                "CURRENT": ("set_ain_mode", "Current"),
-
-                # Current status requests
-                "CUR": ("set_current", "A"),
-                "CURA": ("set_current", "A"),
-                "CURB": ("set_current", "B"),
-            }
-            cmd_parts = received.split(':')
-            base_cmd = cmd_parts[0]
-            cmd_value = cmd_parts[1] if len(cmd_parts) > 1 else None
-            fun = cmd_parts[2] if len(cmd_parts) > 2 else None
-
-            # Check if command exists
-            if base_cmd not in COMMANDS:
+            if cmd_type and params:
+                # Submit to processor (non-blocking)
+                result = self.cmd_processor.submit(cmd_type, params)
+                print(f"✅ Command queued: {result.message}")
+            else:
                 print(f"❌ Unknown command: {received}")
-                return
-
-            cmd_info = COMMANDS[base_cmd]
-            cmd_type = cmd_info[0]
-
-            # Initialize variables
-            mode_type = None
-            target_mode = None
-
-            # Check if this is a mode change command
-            if cmd_type == "change_mode":
-                target_mode = cmd_info[1]
-
-                print(f"📌 Mode change command received: {target_mode}")
-                # Set lock to pause main loop
-                self.write_lock.set()
-
-                def execute_mode_command():
-                    try:
-                        # Execute mode change first
-                        success = self.pam_controller.change_pam_function(
-                            target_mode)
-                        result = f"Mode {target_mode}: {'✅ SUCCESS' if success else '❌ FAILED'}"
-                        print(f"✅ {result}")
-
-                        if success:
-                            # Store the successful mode
-                            self.last_mode_command = target_mode
-
-                            # Reset channel toggle for mode 196
-                            if target_mode == 196:
-                                self.last_ain_channel = "A"
-
-                            # Process any pending AIN commands that were queued
-                            if hasattr(self, 'ain_command_queue') and self.ain_command_queue:
-                                print(
-                                    f"📌 Processing {len(self.ain_command_queue)} pending AIN commands...")
-                                for pending_cmd in self.ain_command_queue:
-                                    # Pass the actual mode that was just set
-                                    self._process_ain_command(pending_cmd['mode_type'],
-                                                              self.last_mode_command)  # FIXED: Use last_mode_command
-                                # Clear the queue after processing
-                                self.ain_command_queue = []
-                        else:
-                            # Mode change failed, clear any pending commands
-                            if hasattr(self, 'ain_command_queue'):
-                                print(
-                                    "❌ Mode change failed, clearing AIN command queue")
-                                self.ain_command_queue = []
-
-                    except Exception as e:
-                        print(f"❌ Command execution error: {e}")
-                    finally:
-                        self.write_lock.clear()
-
-                # Run mode command in thread
-                threading.Thread(target=execute_mode_command,
-                                 daemon=True).start()
-
-            elif cmd_type == "set_ain_mode":
-                mode_type = cmd_info[1]
-
-                # If we don't have a stored mode, get it from PAM right now
-                if not hasattr(self, 'last_mode_command') or self.last_mode_command is None:
-                    print("📌 No stored mode, reading from PAM...")
-                    self.last_mode_command = self.pam_controller.read_function()
-
-                    # If still None, use default
-                    if self.last_mode_command is None:
-                        self.last_mode_command = 195
-                        print(
-                            f"⚠️ Using default mode: {self.last_mode_command}")
-                    else:
-                        print(
-                            f"✅ Read mode from PAM: {self.last_mode_command}")
-
-                # Process AIN command immediately with the mode we have
-                print(
-                    f"📌 Processing {mode_type} with mode: {self.last_mode_command}")
-                self._process_ain_command(mode_type, self.last_mode_command)
-           
-            elif cmd_type == "set_current":
-                channel = cmd_info[1]
-
-                # Check if we have a value
-                if cmd_value is None:
-                    print("❌ No current value provided")
-                    return
-
-                try:
-                    value = int(float(cmd_value))  # Handle both int and float
-
-                    # Optional: Add range validation
-                    if value < 0 or value > 5000:  # Adjust range as needed
-                        print(f"❌ Current value {value} out of range")
-                        return
-
-                    # Set lock for current command
-                    self.write_lock.set()
-
-                    def execute_current_command():
-                        try:
-                            success = self.pam_controller.set_current_value(
-                                value, channel, fun)
-                            result = f"SET CUR{channel}={value}: {'✅' if success else '❌'}"
-                            print(f"✅ {result}")
-
-                        except Exception as e:
-                            print(f"❌ Current command error: {e}")
-                        finally:
-                            self.write_lock.clear()
-
-                    threading.Thread(
-                        target=execute_current_command, daemon=True).start()
-
-                except ValueError:
-                    print(f"❌ Invalid current value: {cmd_value}")
 
         except Exception as e:
             print(f"❌ BLE Write error: {e}")
-            if hasattr(self, 'write_lock'):
-                self.write_lock.clear()
 
 
 class DataCharacteristic(Characteristic):
     """Characteristic that sends notifications with machine state."""
 
-    def __init__(self, bus, index, service, state, pam_controller=None, write_lock=None):
+    def __init__(self, bus, index, service, state, pam_controller=None, write_lock=None, cmd_processor=None):
         super().__init__(bus, index, CHAR_UUID, [
-            "read", "notify", "write"], service)
+            "read", "notify", "write"], service, cmd_processor)
         self.state = state   # MachineState instance
         self.pam_controller = pam_controller
         self.write_lock = write_lock
@@ -436,7 +333,7 @@ def unregister_old_advertisement(bus, adapter_path, adv_path):
 # -------------------------------------------------
 
 
-def run_ble_server(state, pam_controller, write_lock):
+def run_ble_server(state, pam_controller, write_lock,cmd_processor):
     """Set up and register GATT application and advertisement.
        This function will block; call it in a separate thread."""
     DBusGMainLoop(set_as_default=True)
@@ -451,7 +348,7 @@ def run_ble_server(state, pam_controller, write_lock):
     # Build GATT app
     app = Application(bus)
     service = Service(bus, 0, SERVICE_UUID, True)
-    ch = DataCharacteristic(bus, 0, service, state, pam_controller, write_lock)
+    ch = DataCharacteristic(bus, 0, service, state, pam_controller, write_lock,cmd_processor)
     service.add_characteristic(ch)
     app.add_service(service)
 
