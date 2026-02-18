@@ -387,8 +387,10 @@ class PAMController:
 
             # Send command based on mode and channel
             if fun == 195:
+                print("📌 Mode 195: Single channel - ignore channel parameter")
                 # Mode 195: Single channel - ignore channel parameter
                 ct = self.write_current(value)
+                print(f"ct: {ct}")
                 time.sleep(0.5)
                 if not ct:
                     print(f"❌ Failed to set CURRENT to {value}mA")
