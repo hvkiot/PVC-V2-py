@@ -7,6 +7,9 @@ class MachineState:
 
     def __init__(self):
         self._data = {
+            # Flag to indicate if the machine is in transition between modes
+            "IN_TRANSITION": False,
+            # Actual data's
             "FUNC": None,
             "WA": None,
             "WB": None,
@@ -41,3 +44,26 @@ class MachineState:
         """Allow dictionary-style access, e.g. state['KEY']"""
         with self._lock:
             return self._data[key]
+# New methods for transition handling
+
+    def set_transition(self, in_transition: bool):
+        """Set the transition flag"""
+        with self._lock:
+            self._data["IN_TRANSITION"] = in_transition
+
+    def is_in_transition(self) -> bool:
+        """Check if system is in transition"""
+        with self._lock:
+            return self._data.get("IN_TRANSITION", False)
+
+    def wait_for_transition(self, timeout: float = 2.0) -> bool:
+        """
+        Wait for transition to complete.
+        Returns True if transition completed, False if timeout.
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if not self.is_in_transition():
+                return True
+            time.sleep(0.05)
+        return False

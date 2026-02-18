@@ -129,68 +129,118 @@ class CommandProcessor:
             return CommandResult(False, f"Command execution error: {e}")
 
     def _handle_change_mode(self, cmd: Command) -> CommandResult:
-        """Handle mode change (195/196)"""
         try:
             new_mode = cmd.params.get('mode')
             if new_mode not in [195, 196]:
                 return CommandResult(False, f"Invalid mode: {new_mode}")
 
-            print(f"📌 Executing mode change to {new_mode}")
+            old_mode = self.state.get('FUNC')
+            print(f"📌 Mode change: {old_mode} → {new_mode}")
+
+            # Set transition flag
+            self.state.set_transition(True)
 
             # Execute mode change
             success = self.pam.change_pam_function(new_mode)
 
             if success:
-                # IMPORTANT: When switching to 195, ensure both channels have same mode
-                if new_mode == 195:
-                    print("📌 Mode 195: Syncing AIN modes...")
-                    # Read current AINA mode
-                    current_mode = self.pam.read_ain_mode('A')
-                    if current_mode:
-                        # Set AINB to match AINA (even though it's not used in 195)
-                        self.pam.write_ain_mode(current_mode, 'B')
-                        self.pam.save_pam_settings()
-                        print(f"✅ Synced AINB to {current_mode}")
+                if new_mode == 196 and old_mode == 195:
+                    # Special handling: 195 → 196 transition
+                    print("📌 195→196: Setting up both channels atomically")
 
-                # Update state
-                self.state.update(FUNC=new_mode)
+                    # Read current AINA mode (from 195 mode)
+                    current_mode = self.pam.read_ain_mode('A')
+                    if not current_mode:
+                        current_mode = 'V'  # Default
+
+                    # Set both channels to the same mode
+                    print(f"📌 Setting AINA to {current_mode}")
+                    self.pam.write_ain_mode(current_mode, 'A')
+                    time.sleep(0.1)
+
+                    print(f"📌 Setting AINB to {current_mode}")
+                    self.pam.write_ain_mode(current_mode, 'B')
+                    time.sleep(0.1)
+
+                    # Save settings
+                    self.pam.save_pam_settings()
+                    time.sleep(0.5)  # Wait for EEPROM
+
+                    # Verify both are set
+                    new_mode_a = self.pam.read_ain_mode('A')
+                    new_mode_b = self.pam.read_ain_mode('B')
+                    print(f"✅ Verified - A: {new_mode_a}, B: {new_mode_b}")
+
+                    # Update state
+                    self.state.update(
+                        FUNC=new_mode,
+                        MODE_A=new_mode_a,
+                        MODE_B=new_mode_b
+                    )
+                else:
+                    # Normal mode change
+                    self.state.update(FUNC=new_mode)
+
+                # Clear transition flag
+                self.state.set_transition(False)
                 return CommandResult(True, f"Mode changed to {new_mode}")
             else:
+                self.state.set_transition(False)
                 return CommandResult(False, "Mode change failed")
 
         except Exception as e:
+            self.state.set_transition(False)
             return CommandResult(False, f"Mode change error: {e}")
 
     def _handle_set_ain_mode(self, cmd: Command) -> CommandResult:
-        """Handle AIN mode setting (Voltage/Current)"""
         try:
-            unit = cmd.params.get('unit')  # 'V' or 'C'
+            unit = cmd.params.get('unit')
             channel = cmd.params.get('channel', 'A')
 
             if unit not in ['V', 'C']:
                 return CommandResult(False, f"Invalid unit: {unit}")
 
-            print(f"📌 Setting AIN{channel} to {unit}")
+            current_mode = self.state.get('FUNC')
 
-            success = self.pam.change_pam_ain_mode(unit, channel)
+            # If in mode 196 and setting one channel, we should set both
+            if current_mode == 196:
+                print(
+                    f"📌 Mode 196: Setting both channels to {unit} atomically")
 
-            if success:
-                # Update state based on mode
-                current_mode = self.state.get('FUNC')
-                if current_mode == 196:
-                    # Update the specific channel's mode
-                    if channel == 'A':
-                        self.state.update(MODE_A=unit)
-                    else:
-                        self.state.update(MODE_B=unit)
+                self.state.set_transition(True)
+
+                # Set both channels
+                success_a = self.pam.change_pam_ain_mode(unit, 'A')
+                time.sleep(0.1)
+                success_b = self.pam.change_pam_ain_mode(unit, 'B')
+
+                if success_a and success_b:
+                    self.state.update(
+                        MODE_A=unit,
+                        MODE_B=unit
+                    )
+                    self.state.set_transition(False)
+                    return CommandResult(True, f"Both channels set to {unit}")
                 else:
-                    self.state.update(MODE=unit)
-
-                return CommandResult(True, f"AIN{channel} set to {unit}")
+                    self.state.set_transition(False)
+                    return CommandResult(False, "Failed to set both channels")
             else:
-                return CommandResult(False, "AIN mode change failed")
+                # Mode 195 - just set AINA
+                print(f"📌 Setting AINA to {unit}")
+
+                self.state.set_transition(True)
+                success = self.pam.change_pam_ain_mode(unit, channel)
+
+                if success:
+                    self.state.update(MODE=unit)
+                    self.state.set_transition(False)
+                    return CommandResult(True, f"AIN{channel} set to {unit}")
+                else:
+                    self.state.set_transition(False)
+                    return CommandResult(False, "AIN mode change failed")
 
         except Exception as e:
+            self.state.set_transition(False)
             return CommandResult(False, f"AIN mode error: {e}")
 
     def _handle_set_current(self, cmd: Command) -> CommandResult:

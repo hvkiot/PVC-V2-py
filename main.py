@@ -31,6 +31,8 @@ def main_loop(state, pam, dwin, write_lock, cmd_processor):
     last_mode_check = 0
     loop_count = 0
     mismatch_page_active = False
+    last_page_switch = 0
+    PAGE_COOLDOWN = 2.0
 
     while True:
         try:
@@ -40,6 +42,11 @@ def main_loop(state, pam, dwin, write_lock, cmd_processor):
 
             now = time.time()
             loop_count += 1
+
+            # CRITICAL: Skip if system is in transition
+            if state.is_in_transition():
+                time.sleep(0.05)  # Short sleep, then check again
+                continue
 
             # Periodically enforce STD mode
             if now - last_mode_check > MODE_CHECK_INTERVAL:
@@ -81,34 +88,29 @@ def main_loop(state, pam, dwin, write_lock, cmd_processor):
 
                 # Switch to page 28
                 if mode_a and mode_b and mode_a != mode_b:
-                    if mode_a != mode_b:
-                        if not mismatch_page_active:
-                            dwin.switch_page(28)
-                            mismatch_page_active = True
+                    if not state.is_in_transition():
+                        if now - last_page_switch > PAGE_COOLDOWN:
+                            if not mismatch_page_active:
+                                dwin.switch_page(28)
+                                mismatch_page_active = True
 
-                        sel = dwin.read_vp_5100()
-                        if sel == 0:
-                            cmd_processor.submit(
-                                CommandType.SET_AIN_MODE,
-                                {"unit": "V", "channel": "A"}
-                            )
-                            cmd_processor.submit(
-                                CommandType.SET_AIN_MODE,
-                                {"unit": "V", "channel": "B"}
-                            )
-                        elif sel == 1:
-                            cmd_processor.submit(
-                                CommandType.SET_AIN_MODE,
-                                {"unit": "C", "channel": "A"}
-                            )
-                            cmd_processor.submit(
-                                CommandType.SET_AIN_MODE,
-                                {"unit": "C", "channel": "B"}
-                            )
-                        time.sleep(0.1)
-                        continue
+                            sel = dwin.read_vp_5100()
+                            if sel == 0:
+                                cmd_processor.submit(
+                                    CommandType.SET_AIN_MODE,
+                                    {"unit": "V"}
+                                )
+                            elif sel == 1:
+                                cmd_processor.submit(
+                                    CommandType.SET_AIN_MODE,
+                                    {"unit": "C"}
+                                )
+                            time.sleep(0.1)
+                            continue
                     else:
-                        mismatch_page_active = False
+                        if mismatch_page_active:
+                            dwin.switch_page(0)
+                            mismatch_page_active = False
 
                 # Update display - with safe execution for each operation
                 if mode_a:
