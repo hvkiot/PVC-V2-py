@@ -296,6 +296,7 @@ class Characteristic(dbus.service.Object):
                 print(
                     f"📌 Processing {mode_type} with mode: {self.last_mode_command}")
                 self._process_ain_command(mode_type, self.last_mode_command)
+           
             elif cmd_type == "set_current":
                 channel = cmd_info[1]
 

@@ -81,25 +81,34 @@ def main_loop(state, pam, dwin, write_lock):
 
                 # Switch to page 28
                 if mode_a and mode_b and mode_a != mode_b:
-                    if not mismatch_page_active:
-                        dwin.switch_page(28)
-                        mismatch_page_active = True
-                        vp5100_applied = False
+                    if hasattr(self, 'ble_update_in_progress') and self.ble_update_in_progress:
+                        # Skip page switch during BLE updates
+                        print("⏳ BLE update in progress, delaying page switch")
+                        time.sleep(0.5)
+                        # Recheck after delay
+                        mode_a = pam.read_ain_mode('A')
+                        mode_b = pam.read_ain_mode('B')
 
-                    if not vp5100_applied:
-                        sel = dwin.read_vp_5100()
-                        if sel == 0:
-                            pam.cmd("AINA V")
-                            pam.cmd("AINB V")
-                            vp5100_applied = True
-                        elif sel == 1:
-                            pam.cmd("AINA C")
-                            pam.cmd("AINB C")
-                            vp5100_applied = True
-                    time.sleep(0.1)
-                    continue
-                else:
-                    mismatch_page_active = False
+                    if mode_a != mode_b:
+                        if not mismatch_page_active:
+                            dwin.switch_page(28)
+                            mismatch_page_active = True
+                            vp5100_applied = False
+
+                        if not vp5100_applied:
+                            sel = dwin.read_vp_5100()
+                            if sel == 0:
+                                pam.cmd("AINA V")
+                                pam.cmd("AINB V")
+                                vp5100_applied = True
+                            elif sel == 1:
+                                pam.cmd("AINA C")
+                                pam.cmd("AINB C")
+                                vp5100_applied = True
+                        time.sleep(0.1)
+                        continue
+                    else:
+                        mismatch_page_active = False
 
                 # Update display - with safe execution for each operation
                 if mode_a:
