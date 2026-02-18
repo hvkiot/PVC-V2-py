@@ -386,7 +386,7 @@ class PAMController:
                 f"📌 Current mode: {fun}, setting channel {channel} to {value}mA")
 
             # Send command based on mode and channel
-            if fun == 195:
+            if fun == "195":
                 print("📌 Mode 195: Single channel - ignore channel parameter")
                 # Mode 195: Single channel - ignore channel parameter
                 ct = self.write_current(value)
@@ -406,7 +406,7 @@ class PAMController:
                 print(resp, value)
                 return resp == int(value)
 
-            elif fun == 196:
+            elif fun == "196":
                 # Mode 196: Dual channel - set only the requested channel
                 if channel.upper() == 'A':
                     ct = self.write_current_a(value)
