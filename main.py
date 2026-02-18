@@ -31,8 +31,6 @@ def main_loop(state, pam, dwin, write_lock, cmd_processor):
     last_mode_check = 0
     loop_count = 0
     mismatch_page_active = False
-    last_page_switch = 0  # Add cooldown timer for page 28
-    page_cooldown = 2.0   # Minimum seconds between page switches
 
     while True:
         try:
@@ -83,7 +81,7 @@ def main_loop(state, pam, dwin, write_lock, cmd_processor):
 
                 # Switch to page 28
                 if mode_a and mode_b and mode_a != mode_b:
-                    if now - last_page_switch > page_cooldown:
+                    if mode_a != mode_b:
                         if not mismatch_page_active:
                             dwin.switch_page(28)
                             mismatch_page_active = True
