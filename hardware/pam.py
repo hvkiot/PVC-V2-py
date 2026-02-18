@@ -17,6 +17,7 @@ class PAMController:
             name="PAM"
         )
         self._connected_once = False
+        self._verify_writes = True
 
     def cmd(self, command):
         """Send a command and read until the prompt '>' is received."""
@@ -50,11 +51,13 @@ class PAMController:
 
     @property
     def verify_writes(self):
-        return getattr(self, '_verify_writes', True)
+        """Get verification setting"""
+        return self._verify_writes
 
     @verify_writes.setter
     def verify_writes(self, value):
-        self._verify_writes = value
+        """Set verification setting"""
+        self._verify_writes = bool(value)
 
     # ---------- response parsers ----------
 
@@ -382,16 +385,17 @@ class PAMController:
         try:
             # === VALIDATION ===
             # Validate value
-            value = int(value)  # Convert once
+            value = int(value)
             if not (500 <= value <= 2600):
                 print(f"❌ Value {value} is out of range (500mA-2600mA)")
                 return False
 
-            # Validate channel based on mode
+            # Validate/handle channel based on mode
             channel = channel.upper()
-            if mode == "195" and channel != 'A':
-                print(f"⚠️ Mode 195 ignores channel {channel}, using A")
-                channel = 'A'  # Auto-correct instead of failing
+            if mode == "195":
+                if channel != 'A':
+                    print(f"⚠️ Mode 195 ignores channel {channel}, using A")
+                channel = 'A'  # Force to A for mode 195
             elif mode == "196" and channel not in ['A', 'B']:
                 print(f"❌ Invalid channel {channel} for mode 196")
                 return False
@@ -406,37 +410,50 @@ class PAMController:
             if mode == "195":
                 # Mode 195: Single channel command
                 success = self.write_current(value)
-                verify_func = self.get_current_status
+                time.sleep(0.5)
+
+                if success:
+                    self.save_pam_settings()
+                    time.sleep(3.0)
+
+                    # Optional verification
+                    if self._verify_writes:
+                        resp = self.get_current_status()
+                        if resp == value:
+                            print(f"✅ Current set and verified")
+                        else:
+                            print(
+                                f"⚠️ Verification failed: expected {value}, got {resp}")
+                            return False
+                    return True
 
             elif mode == "196":
                 # Mode 196: Channel-specific command
                 if channel == 'A':
                     success = self.write_current_a(value)
                     verify_func = self.get_current_a_status
-                else:
+                else:  # channel B
                     success = self.write_current_b(value)
                     verify_func = self.get_current_b_status
 
-            if not success:
-                print(f"❌ Failed to set current")
-                return False
+                time.sleep(0.5)
 
-            # Wait for command to process
-            time.sleep(0.5)
+                if success:
+                    self.save_pam_settings()
+                    time.sleep(3.0)
 
-            # Save settings (only once)
-            self.save_pam_settings()
-            time.sleep(3.0)  # Wait for EEPROM write
+                    # Optional verification
+                    if self._verify_writes:
+                        resp = verify_func()
+                        if resp == value:
+                            print(f"✅ Current set and verified")
+                        else:
+                            print(
+                                f"⚠️ Verification failed: expected {value}, got {resp}")
+                            return False
+                    return True
 
-            # Verify (optional - can be disabled for speed)
-            if self._verify_writes:  # Add this as class variable if needed
-                resp = verify_func()
-                if resp != value:
-                    print(
-                        f"⚠️ Verification failed: expected {value}, got {resp}")
-                    return False
-
-            return True
+            return False
 
         except ValueError:
             print(f"❌ Invalid value format: {value}")

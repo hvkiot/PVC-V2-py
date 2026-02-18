@@ -250,29 +250,23 @@ class CommandProcessor:
             channel = cmd.params.get('channel', 'A')
             mode = cmd.params.get('mode')
 
-            # Validate
-            if not isinstance(value, int):
-                return CommandResult(False, f"Invalid value type: {type(value)}")
-
-            if not (500 <= value <= 2600):
-                return CommandResult(False, f"Value {value} out of range (500-2600)")
+            # Convert mode to string for consistency
+            mode_str = str(mode)
 
             print(
-                f"📌 Setting current - Mode:{mode}, Channel:{channel}, Value:{value}mA")
+                f"📌 Setting current - Mode:{mode_str}, Channel:{channel}, Value:{value}mA")
 
             # Set transition flag
             self.state.set_transition(True)
 
-            # Use appropriate method based on mode
-            if mode == 195:
-                # Mode 195: Use CURRENT command (affects channel A)
-                success = self.pam.set_current_value(value, 'A', str(mode))
-                if success:
+            # Call PAM controller
+            success = self.pam.set_current_value(value, channel, mode_str)
+
+            # Update state if successful
+            if success:
+                if mode_str == "195":
                     self.state.update(CURRENT_STATUS=value)
-            else:  # 196
-                # Mode 196: Use channel-specific command
-                success = self.pam.set_current_value(value, channel, str(mode))
-                if success:
+                else:  # 196
                     if channel == 'A':
                         self.state.update(CURRENT_A_STATUS=value)
                     else:
