@@ -29,6 +29,8 @@ def main_loop(state, pam, dwin, write_lock):
     """Main processing loop - isolated so it can be restarted."""
     last_mode_check = 0
     loop_count = 0
+    mismatch_page_active = False
+    vp5100_applied = False
 
     while True:
         try:
@@ -76,6 +78,28 @@ def main_loop(state, pam, dwin, write_lock):
                 current_a_status = safe_execution(pam.get_current_a_status)
                 current_b_status = safe_execution(pam.get_current_b_status)
                 current_status = safe_execution(pam.get_current_status)
+
+                # Switch to page 28
+                if mode_a and mode_b and mode_a != mode_b:
+                    if not mismatch_page_active:
+                        dwin.switch_page(28)
+                        mismatch_page_active = True
+                        vp5100_applied = False
+
+                    if not vp5100_applied:
+                        sel = dwin.read_vp_5100()
+                        if sel == 0:
+                            pam.cmd("AINA V")
+                            pam.cmd("AINB V")
+                            vp5100_applied = True
+                        elif sel == 1:
+                            pam.cmd("AINA C")
+                            pam.cmd("AINB C")
+                            vp5100_applied = True
+                    time.sleep(0.1)
+                    continue
+                else:
+                    mismatch_page_active = False
 
                 # Update display - with safe execution for each operation
                 if mode_a:
