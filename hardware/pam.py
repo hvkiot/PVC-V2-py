@@ -45,6 +45,17 @@ class PAMController:
         except Exception as e:
             print(f"❌ PAM command error: {e}")
             return ""
+
+    # --------- verify_writes property ---------
+
+    @property
+    def verify_writes(self):
+        return getattr(self, '_verify_writes', True)
+
+    @verify_writes.setter
+    def verify_writes(self, value):
+        self._verify_writes = value
+
     # ---------- response parsers ----------
 
     @staticmethod
@@ -293,8 +304,9 @@ class PAMController:
         return True
 
     # ---------- change mode ----------
-    
+
     def change_pam_function(self, new_mode):
+        """Change PAM function mode (195 or 196)"""
         if new_mode not in [195, 196]:
             return False
 
@@ -302,11 +314,17 @@ class PAMController:
             # Flush before starting
             self.ser.reset_input_buffer()
 
-            # Send FUNCTION_MODE command (correct one!)
+            # Send FUNCTION_MODE command
             self.write_function_mode(new_mode)
             time.sleep(0.5)
 
-            # Save
+            # Reset current values for both channels (same for both modes)
+            self.cmd("IA 0")
+            time.sleep(0.1)
+            self.cmd("IB 0")
+            time.sleep(0.1)
+
+            # Save settings once
             self.save_pam_settings()
             time.sleep(3.0)  # Wait for EEPROM write
 
@@ -314,131 +332,115 @@ class PAMController:
             self.ser.reset_input_buffer()
             resp = self.read_function()
 
-            if new_mode == 195:
-                self.cmd("IA 0")
-                time.sleep(0.1)
-                self.cmd("IB 0")
-                time.sleep(0.1)
-                self.save_pam_settings()
-            elif new_mode == 196:
-                self.cmd("IA 0")
-                time.sleep(0.1)
-                self.cmd("IB 0")
-                time.sleep(0.1)
-                self.save_pam_settings()
-
             return resp == float(new_mode)
+
         except Exception as e:
-            print(f"Error in change_pam_function: {e}")
+            print(f"❌ Error in change_pam_function: {e}")
             return False
 
     def change_pam_ain_mode(self, unit, channel):
         """
-        Changes the PAM AINA mode in 195 or AINA and AINB in 196 and saves settings.
+        Changes the PAM AIN mode for specified channel
         """
         if unit not in ['V', 'C']:
             return False
+
         try:
             # Flush before starting
             self.ser.reset_input_buffer()
 
-            # Send AINA_MODE command (correct one!)
+            # Send AIN mode command
             self.write_ain_mode(unit, channel)
             time.sleep(0.5)
 
-            # Save
+            # Save settings
             self.save_pam_settings()
             time.sleep(3.0)  # Wait for EEPROM write
 
             # Verify
             self.ser.reset_input_buffer()
-            resp = self.read_ain_mode()
+            resp = self.read_ain_mode(channel)
 
             return resp == unit
+
         except Exception as e:
-            print(f"Error in change_pam_ain_mode: {e}")
+            print(f"❌ Error in change_pam_ain_mode: {e}")
             return False
 
-    def set_current_value(self, value, channel, fun):
+    def set_current_value(self, value, channel, mode):
         """
         Set current value for A or B channel.
 
         Args:
-            value: Current value (int or float)
-            channel: 'A' or 'B'
+            value: Current value (int, 500-2600)
+            channel: 'A' or 'B' 
+            mode: '195' or '196'
 
         Returns:
             True if successful, False otherwise
         """
         try:
-            # Validate channel
-            if channel.upper() not in ['A', 'B']:
-                print(f"❌ Invalid channel: {channel}")
-                return False
-
-            # Validate value range (500-2600)
-            if not (500 <= int(value) <= 2600):
+            # === VALIDATION ===
+            # Validate value
+            value = int(value)  # Convert once
+            if not (500 <= value <= 2600):
                 print(f"❌ Value {value} is out of range (500mA-2600mA)")
                 return False
 
+            # Validate channel based on mode
+            channel = channel.upper()
+            if mode == "195" and channel != 'A':
+                print(f"⚠️ Mode 195 ignores channel {channel}, using A")
+                channel = 'A'  # Auto-correct instead of failing
+            elif mode == "196" and channel not in ['A', 'B']:
+                print(f"❌ Invalid channel {channel} for mode 196")
+                return False
+
+            print(f"📌 Mode {mode}: setting channel {channel} to {value}mA")
+
+            # === EXECUTION ===
             # Flush before starting
             self.ser.reset_input_buffer()
 
-            print(
-                f"📌 Current mode: {fun}, setting channel {channel} to {value}mA")
-
             # Send command based on mode and channel
-            if fun == "195":
-                # Mode 195: Single channel - ignore channel parameter
-                ct = self.write_current(value)
-                time.sleep(0.5)
-                if not ct:
-                    print(f"❌ Failed to set CURRENT to {value}mA")
+            if mode == "195":
+                # Mode 195: Single channel command
+                success = self.write_current(value)
+                verify_func = self.get_current_status
+
+            elif mode == "196":
+                # Mode 196: Channel-specific command
+                if channel == 'A':
+                    success = self.write_current_a(value)
+                    verify_func = self.get_current_a_status
+                else:
+                    success = self.write_current_b(value)
+                    verify_func = self.get_current_b_status
+
+            if not success:
+                print(f"❌ Failed to set current")
+                return False
+
+            # Wait for command to process
+            time.sleep(0.5)
+
+            # Save settings (only once)
+            self.save_pam_settings()
+            time.sleep(3.0)  # Wait for EEPROM write
+
+            # Verify (optional - can be disabled for speed)
+            if self._verify_writes:  # Add this as class variable if needed
+                resp = verify_func()
+                if resp != value:
+                    print(
+                        f"⚠️ Verification failed: expected {value}, got {resp}")
                     return False
-                # Save settings
-                self.save_pam_settings()
-                time.sleep(3.0)  # Wait for EEPROM write
 
-                # Verify
-                resp = self.get_current_status()
-                return resp == int(value)
+            return True
 
-            elif fun == "196":
-                # Mode 196: Dual channel - set only the requested channel
-                if channel.upper() == 'A':
-                    ct = self.write_current_a(value)
-                    time.sleep(0.5)
-                    if not ct:
-                        print(f"❌ Failed to set CURRENT A to {value}mA")
-                        return False
-
-                    # Save settings
-                    self.save_pam_settings()
-                    time.sleep(3.0)  # Wait for EEPROM write
-
-                    # Verify
-                    resp = self.get_current_a_status()
-                    print(resp, value)
-                    return resp == int(value)
-
-                else:  # channel B
-                    ct = self.write_current_b(value)
-                    time.sleep(0.5)
-                    if not ct:
-                        print(f"❌ Failed to set CURRENT B to {value}mA")
-                        return False
-
-                    # Save settings
-                    self.save_pam_settings()
-                    time.sleep(3.0)  # Wait for EEPROM write
-
-                    # Verify
-                    resp = self.get_current_b_status()
-                    print(resp, value)
-                    return resp == int(value)
-
+        except ValueError:
+            print(f"❌ Invalid value format: {value}")
             return False
-
         except Exception as e:
             print(f"❌ Error setting current: {e}")
             return False
