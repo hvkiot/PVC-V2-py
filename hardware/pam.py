@@ -387,23 +387,18 @@ class PAMController:
 
             # Send command based on mode and channel
             if fun == "195":
-                print("📌 Mode 195: Single channel - ignore channel parameter")
                 # Mode 195: Single channel - ignore channel parameter
                 ct = self.write_current(value)
-                print(f"ct: {ct}")
                 time.sleep(0.5)
                 if not ct:
                     print(f"❌ Failed to set CURRENT to {value}mA")
                     return False
-                print(f"📌 Mode 195: Setting CURRENT to {value}mA")
-
                 # Save settings
                 self.save_pam_settings()
                 time.sleep(3.0)  # Wait for EEPROM write
 
                 # Verify
                 resp = self.get_current_status()
-                print(resp, value)
                 return resp == int(value)
 
             elif fun == "196":
@@ -414,7 +409,6 @@ class PAMController:
                     if not ct:
                         print(f"❌ Failed to set CURRENT A to {value}mA")
                         return False
-                    print(f"📌 Mode 196: Setting CURRENT A to {value}mA")
 
                     # Save settings
                     self.save_pam_settings()
@@ -431,7 +425,6 @@ class PAMController:
                     if not ct:
                         print(f"❌ Failed to set CURRENT B to {value}mA")
                         return False
-                    print(f"📌 Mode 196: Setting CURRENT B to {value}mA")
 
                     # Save settings
                     self.save_pam_settings()

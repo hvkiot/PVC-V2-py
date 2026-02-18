@@ -324,13 +324,6 @@ class Characteristic(dbus.service.Object):
                             result = f"SET CUR{channel}={value}: {'✅' if success else '❌'}"
                             print(f"✅ {result}")
 
-                            # Optional: Read back and confirm
-                            if success:
-                                time.sleep(0.1)
-                                read_value = self.pam_controller.get_current_status(
-                                    channel)
-                                print(f"📊 Read back: {read_value}")
-
                         except Exception as e:
                             print(f"❌ Current command error: {e}")
                         finally:
