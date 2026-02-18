@@ -278,26 +278,24 @@ class Characteristic(dbus.service.Object):
             elif cmd_type == "set_ain_mode":
                 mode_type = cmd_info[1]
 
-                # Check if we have a successful mode change yet
-                if not hasattr(self, 'last_mode_command') and received != "VOLTAGE" and received != "CURRENT":
-                    print(
-                        "⚠️ No mode set yet. Queueing AIN command for after mode change...")
+                # If we don't have a stored mode, get it from PAM right now
+                if not hasattr(self, 'last_mode_command') or self.last_mode_command is None:
+                    print("📌 No stored mode, reading from PAM...")
+                    self.last_mode_command = self.pam_controller.read_function()
 
-                    # Initialize queue if needed
-                    if not hasattr(self, 'ain_command_queue'):
-                        self.ain_command_queue = []
+                    # If still None, use default
+                    if self.last_mode_command is None:
+                        self.last_mode_command = 195
+                        print(
+                            f"⚠️ Using default mode: {self.last_mode_command}")
+                    else:
+                        print(
+                            f"✅ Read mode from PAM: {self.last_mode_command}")
 
-                    # Queue this AIN command - store the mode_type only
-                    self.ain_command_queue.append({
-                        'mode_type': mode_type
-                        # No target_mode here - will use the mode after change
-                    })
-                    return
-
-                # Process AIN command immediately if mode is already set
-                target_mode = self.last_mode_command
-                self._process_ain_command(mode_type, target_mode)
-
+                # Process AIN command immediately with the mode we have
+                print(
+                    f"📌 Processing {mode_type} with mode: {self.last_mode_command}")
+                self._process_ain_command(mode_type, self.last_mode_command)
             elif cmd_type == "set_current":
                 channel = cmd_info[1]
 
