@@ -292,6 +292,8 @@ class PAMController:
         self.cmd("SAVE")
         return True
 
+    # ---------- change mode ----------
+    
     def change_pam_function(self, new_mode):
         if new_mode not in [195, 196]:
             return False

@@ -279,7 +279,7 @@ class Characteristic(dbus.service.Object):
                 mode_type = cmd_info[1]
 
                 # Check if we have a successful mode change yet
-                if not hasattr(self, 'last_mode_command'):
+                if not hasattr(self, 'last_mode_command') and received != "VOLTAGE" and received != "CURRENT":
                     print(
                         "⚠️ No mode set yet. Queueing AIN command for after mode change...")
 
