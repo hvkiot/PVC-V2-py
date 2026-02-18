@@ -178,17 +178,17 @@ class PAMController:
             # --- MODE 195 LOGIC (Directional) ---
             elif mode == 195:
                 status = val & 0xFFFF
-                chA_ok = (status & 256) > 0   # Bit 8
-                chB_ok = (status & 128) > 0   # Bit 7
+                chB_ok = (status & 256) > 0   # Bit 8
+                chA_ok = (status & 128) > 0   # Bit 7
 
                 if status == 65532:
                     return "ALL OFF"
                 if chA_ok and chB_ok:
                     return "A + B ACTIVE"
-                elif chB_ok:
-                    return "B ACTIVE"
                 elif chA_ok:
                     return "A ACTIVE"
+                elif chB_ok:
+                    return "B ACTIVE"
                 else:
                     return "ALL OFF"
         except Exception as e:
