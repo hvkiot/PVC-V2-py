@@ -84,7 +84,6 @@ def main_loop(state, pam, dwin, write_lock, cmd_processor):
                 enabled_b = safe_execution(pam.get_enabled_b_status)
                 current_a_status = safe_execution(pam.get_current_a_status)
                 current_b_status = safe_execution(pam.get_current_b_status)
-                current_status = safe_execution(pam.get_current_status)
 
                 # Switch to page 28
                 if mode_a and mode_b and mode_a != mode_b:
@@ -172,8 +171,6 @@ def main_loop(state, pam, dwin, write_lock, cmd_processor):
                     PIN15=pin15,
                     PIN6=pin6,
                     ENABLED_B=enabled_b,
-                    CURRENT_A_STATUS=current_a_status,
-                    CURRENT_B_STATUS=current_b_status,
                     CURRENT_STATUS=current_a_status
                 )
 
