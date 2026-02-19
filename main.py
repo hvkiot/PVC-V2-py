@@ -173,6 +173,7 @@ def main_loop(state, pam, dwin, write_lock, cmd_processor):
                     ENABLED_B=enabled_b,
                     CURRENT_A_STATUS=current_a_status,
                     CURRENT_B_STATUS=current_b_status,
+                    CURRENT_STATUS=None,
                 )
 
             # ---------------- FUNCTION 195 ----------------
@@ -239,6 +240,8 @@ def main_loop(state, pam, dwin, write_lock, cmd_processor):
                     PIN15=pin15,
                     PIN6=pin6,
                     ENABLED_B=enabled_b,
+                    CURRENT_A_STATUS=None,
+                    CURRENT_B_STATUS=None,
                     CURRENT_STATUS=current_status,
                 )
 
