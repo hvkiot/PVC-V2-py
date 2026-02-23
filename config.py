@@ -2,6 +2,7 @@
 # -------------------------------------------------
 # Hardware ports & baud rates
 PAM_PORT = "/dev/ttyUSB0"
+# PAM_PORT = "COM5"
 DWIN_PORT = "/dev/serial0"
 PAM_BAUD = 57600
 DWIN_BAUD = 115200
