@@ -1,5 +1,10 @@
 # config.py
 # -------------------------------------------------
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # Hardware ports & baud rates
 PAM_PORT = "/dev/ttyUSB0"
 # PAM_PORT = "COM5"
@@ -17,7 +22,8 @@ SERVICE_UUID = "12345678-1234-5678-1234-56789abcdef0"
 CHAR_UUID = "12345678-1234-5678-1234-56789abcdef1"
 
 # BLE advertisement name
-BLE_DEVICE_NAME = "PVC-26020001"
+# BLE_DEVICE_NAME = "PVC-26020001"
+BLE_DEVICE_NAME= os.getenv("DEVICE_SUFFIX")
 
 # DWIN VPIN addresses
 VPIN_WA = 0x5500
