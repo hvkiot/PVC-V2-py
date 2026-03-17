@@ -1,1 +1,5 @@
+/venv
+/__pycache__
+/utils/__pycache__
+/hardware/__pycache__
 .env
