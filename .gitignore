@@ -1,5 +1,6 @@
 /venv
 /__pycache__
+/ble/__pycache__
 /utils/__pycache__
 /hardware/__pycache__
 .env

@@ -12,7 +12,6 @@ from config import (
 from state import MachineState
 from hardware.pam import PAMController
 from hardware.dwin import DWINDisplay
-from ble.gatt_server import run_ble_server
 from ble.command_processor import CommandProcessor, CommandType
 
 
@@ -276,10 +275,9 @@ def main():
         print(
             f"\n💥 UNCAUGHT GLOBAL EXCEPTION: {exc_type.__name__}: {exc_value}")
         traceback.print_tb(exc_traceback)
-        print("\n🔄 System will restart in 5 seconds...\n")
+        print("\n🔄 System will exit in 5 seconds...\n")
         time.sleep(5)
-        # Restart the entire system
-        main()  # Recursive restart - will create new instance
+        sys.exit(1)
 
     sys.excepthook = global_exception_handler
 
@@ -302,6 +300,7 @@ def main():
 
             # Start BLE server only once
             if not ble_thread_running:
+                from ble.gatt_server import run_ble_server
                 print("--- Starting BLE server ---")
                 ble_thread = threading.Thread(
                     target=run_ble_server,

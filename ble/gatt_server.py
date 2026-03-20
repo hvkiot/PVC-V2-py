@@ -11,6 +11,79 @@ from config import SERVICE_UUID, CHAR_UUID, BLE_DEVICE_NAME
 from ble.bluez_helpers import find_adapter, GATT_MANAGER_IFACE, LE_ADVERTISING_MANAGER_IFACE
 from ble.command_processor import CommandType
 
+
+def run_ble_server(state, pam_controller, write_lock, cmd_processor):
+    """Set up and register GATT application and advertisement.
+       This function will block; call it in a separate thread."""
+    print("🔄 Generating new random BLE identity...")
+    os.system("sudo hciconfig hci0 leadv 3")
+    DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+
+    adapter = find_adapter(bus)
+    if not adapter:
+        print("❌ No BLE adapter found (needs LEAdvertisingManager1 + GattManager1)")
+        return
+
+    unregister_old_advertisement(bus, adapter, "/com/example/advertisement0")
+    # Build GATT app
+    app = Application(bus)
+    service = Service(bus, 0, SERVICE_UUID, True)
+    ch = DataCharacteristic(bus, 0, service, state,
+                            pam_controller, write_lock, cmd_processor)
+    service.add_characteristic(ch)
+    app.add_service(service)
+
+    # Register GATT app
+    service_manager = dbus.Interface(
+        bus.get_object("org.bluez", adapter), GATT_MANAGER_IFACE
+    )
+    ad_manager = dbus.Interface(
+        bus.get_object("org.bluez", adapter), LE_ADVERTISING_MANAGER_IFACE
+    )
+
+    adv = Advertisement(bus, 0, adapter)
+
+    mainloop = GLib.MainLoop()
+
+    def on_app_registered():
+        print("✅ GATT application registered")
+        ch.start_sending()
+
+    def on_app_error(e):
+        print("❌ Failed to register application:", e)
+        mainloop.quit()
+
+    def on_adv_registered():
+        print(f"✅ Advertisement registered: name={BLE_DEVICE_NAME}")
+
+    def on_adv_error(e):
+        print("❌ Failed to register advertisement:", e)
+        mainloop.quit()
+
+    service_manager.RegisterApplication(
+        app.get_path(),
+        {},
+        reply_handler=on_app_registered,
+        error_handler=on_app_error
+    )
+
+    ad_manager.RegisterAdvertisement(
+        adv.get_path(),
+        {},
+        reply_handler=on_adv_registered,
+        error_handler=on_adv_error
+    )
+
+    try:
+        mainloop.run()
+    finally:
+        try:
+            ad_manager.UnregisterAdvertisement(adv.get_path())
+        except:
+            pass
+
+
 # D-Bus interface constants
 GATT_SERVICE_IFACE = "org.bluez.GattService1"
 GATT_CHRC_IFACE = "org.bluez.GattCharacteristic1"
@@ -403,78 +476,3 @@ def unregister_old_advertisement(bus, adapter_path, adv_path):
            "org.bluez.Error.NotPermitted" not in str(e):
             print(f"⚠️ Failed to unregister {adv_path}: {e}")
 
-# -------------------------------------------------
-# Main entry: start BLE server in a GLib main loop thread
-# -------------------------------------------------
-
-
-def run_ble_server(state, pam_controller, write_lock, cmd_processor):
-    """Set up and register GATT application and advertisement.
-       This function will block; call it in a separate thread."""
-    print("🔄 Generating new random BLE identity...")
-    os.system("sudo hciconfig hci0 leadv 3")
-    DBusGMainLoop(set_as_default=True)
-    bus = dbus.SystemBus()
-
-    adapter = find_adapter(bus)
-    if not adapter:
-        print("❌ No BLE adapter found (needs LEAdvertisingManager1 + GattManager1)")
-        return
-
-    unregister_old_advertisement(bus, adapter, "/com/example/advertisement0")
-    # Build GATT app
-    app = Application(bus)
-    service = Service(bus, 0, SERVICE_UUID, True)
-    ch = DataCharacteristic(bus, 0, service, state,
-                            pam_controller, write_lock, cmd_processor)
-    service.add_characteristic(ch)
-    app.add_service(service)
-
-    # Register GATT app
-    service_manager = dbus.Interface(
-        bus.get_object("org.bluez", adapter), GATT_MANAGER_IFACE
-    )
-    ad_manager = dbus.Interface(
-        bus.get_object("org.bluez", adapter), LE_ADVERTISING_MANAGER_IFACE
-    )
-
-    adv = Advertisement(bus, 0, adapter)
-
-    mainloop = GLib.MainLoop()
-
-    def on_app_registered():
-        print("✅ GATT application registered")
-        ch.start_sending()
-
-    def on_app_error(e):
-        print("❌ Failed to register application:", e)
-        mainloop.quit()
-
-    def on_adv_registered():
-        print(f"✅ Advertisement registered: name={BLE_DEVICE_NAME}")
-
-    def on_adv_error(e):
-        print("❌ Failed to register advertisement:", e)
-        mainloop.quit()
-
-    service_manager.RegisterApplication(
-        app.get_path(),
-        {},
-        reply_handler=on_app_registered,
-        error_handler=on_app_error
-    )
-
-    ad_manager.RegisterAdvertisement(
-        adv.get_path(),
-        {},
-        reply_handler=on_adv_registered,
-        error_handler=on_adv_error
-    )
-
-    try:
-        mainloop.run()
-    finally:
-        try:
-            ad_manager.UnregisterAdvertisement(adv.get_path())
-        except:
-            pass
