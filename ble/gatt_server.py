@@ -330,6 +330,7 @@ class Advertisement(dbus.service.Object):
         self.local_name = BLE_DEVICE_NAME
         self.include_tx_power = True
         self.type = 'peripheral'
+        self.discoverable = False
         dbus.service.Object.__init__(self, bus, self.path)
 
     def get_path(self):
@@ -342,6 +343,7 @@ class Advertisement(dbus.service.Object):
                 "ServiceUUIDs": dbus.Array(self.service_uuids, signature="s"),
                 "LocalName": self.local_name,
                 'IncludeTxPower': dbus.Boolean(self.include_tx_power),
+                'Discoverable': dbus.Boolean(self.discoverable),
             }
         }
 
@@ -355,12 +357,12 @@ class Advertisement(dbus.service.Object):
 
         # Use 0x06 = LE General Discoverable + BR/EDR Not Supported
         # This tells Android it's a pure LE device that doesn't need bonding
-        flags = dbus.Byte(0x06)
+        flags = dbus.Byte(0x04)
         properties[LE_ADVERTISEMENT_IFACE]['Flags'] = flags
 
         # Add appearance - use "Generic Sensor" (0x0540)
         # This indicates it's a simple device that doesn't need pairing
-        properties[LE_ADVERTISEMENT_IFACE]['Appearance'] = dbus.UInt16(0x0540)
+        properties[LE_ADVERTISEMENT_IFACE]['Appearance'] = dbus.UInt16(0x0000)
 
         # Add manufacturer data to further indicate no bonding
         # Using a custom manufacturer ID (0xFFFF for testing)
