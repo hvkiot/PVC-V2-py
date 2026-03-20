@@ -328,20 +328,51 @@ class Advertisement(dbus.service.Object):
         self.adapter_path = adapter_path
         self.service_uuids = [SERVICE_UUID]
         self.local_name = BLE_DEVICE_NAME
+        self.include_tx_power = True
+        self.type = 'peripheral'
         dbus.service.Object.__init__(self, bus, self.path)
 
     def get_path(self):
         return dbus.ObjectPath(self.path)
 
     def get_properties(self):
-        return {
+        properties = {
             LE_ADVERTISEMENT_IFACE: {
-                "Type": "peripheral",
+                'Type': dbus.String(self.type),
                 "ServiceUUIDs": dbus.Array(self.service_uuids, signature="s"),
                 "LocalName": self.local_name,
-                "IncludeTxPower": True,
+                'IncludeTxPower': dbus.Boolean(self.include_tx_power),
             }
         }
+
+        # CRITICAL: Add flags to indicate NO bonding required
+        # Flag values:
+        # 0x01 - LE Limited Discoverable Mode
+        # 0x02 - LE General Discoverable Mode
+        # 0x04 - BR/EDR Not Supported
+        # 0x08 - Simultaneous LE and BR/EDR to Same Device Capable (controller)
+        # 0x10 - Simultaneous LE and BR/EDR to Same Device Capable (host)
+
+        # Use 0x06 = LE General Discoverable + BR/EDR Not Supported
+        # This tells Android it's a pure LE device that doesn't need bonding
+        flags = dbus.Byte(0x06)
+        properties[LE_ADVERTISEMENT_IFACE]['Flags'] = flags
+
+        # Add appearance - use "Generic Sensor" (0x0540)
+        # This indicates it's a simple device that doesn't need pairing
+        properties[LE_ADVERTISEMENT_IFACE]['Appearance'] = dbus.UInt16(0x0540)
+
+        # Add manufacturer data to further indicate no bonding
+        # Using a custom manufacturer ID (0xFFFF for testing)
+        manufacturer_data = dbus.Dictionary({
+            dbus.UInt16(0xFFFF): dbus.Array([
+                dbus.Byte(0x00),  # No bonding required flag
+                dbus.Byte(0x01),  # Just Works supported
+            ], signature='y')
+        }, signature='qv')
+        properties[LE_ADVERTISEMENT_IFACE]['ManufacturerData'] = manufacturer_data
+
+        return properties
 
     @dbus.service.method(PROP_IFACE, in_signature="s", out_signature="a{sv}")
     def GetAll(self, interface):
@@ -351,7 +382,7 @@ class Advertisement(dbus.service.Object):
 
     @dbus.service.method(LE_ADVERTISEMENT_IFACE)
     def Release(self):
-        pass
+        print('Advertisement released')
 
 
 def unregister_old_advertisement(bus, adapter_path, adv_path):
