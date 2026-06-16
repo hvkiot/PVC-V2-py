@@ -8,7 +8,11 @@ from gi.repository import GLib
 from dbus.mainloop.glib import DBusGMainLoop
 
 from config import SERVICE_UUID, CHAR_UUID, BLE_DEVICE_NAME
-from ble.bluez_helpers import find_adapter, GATT_MANAGER_IFACE, LE_ADVERTISING_MANAGER_IFACE
+from ble.bluez_helpers import (
+    find_adapter,
+    GATT_MANAGER_IFACE,
+    LE_ADVERTISING_MANAGER_IFACE,
+)
 from ble.command_processor import CommandType
 
 # D-Bus interface constants
@@ -112,7 +116,7 @@ class Characteristic(dbus.service.Object):
             elif target_mode == 196:
                 # Mode 196: Both channels available
                 # Track last channel used
-                if not hasattr(self, 'last_ain_channel'):
+                if not hasattr(self, "last_ain_channel"):
                     self.last_ain_channel = "A"  # Default to A first
 
                 # Toggle between A and B
@@ -134,7 +138,8 @@ class Characteristic(dbus.service.Object):
                         return
 
                     success = self.pam_controller.change_pam_ain_mode(
-                        mode_type[0], channel)
+                        mode_type[0], channel
+                    )
                     result = f"AIN{channel} set to {mode_type[0]}: {'✅ SUCCESS' if success else '❌ FAILED'}"
                     print(f"✅ {result}")
 
@@ -170,9 +175,13 @@ class Characteristic(dbus.service.Object):
             return CommandType.SET_AIN_MODE, {"unit": "C"}
 
         # Mode 195 format: CUR:1500:195
-        if received.startswith("CUR:") and not received.startswith("CURA:") and not received.startswith("CURB:"):
+        if (
+            received.startswith("CUR:")
+            and not received.startswith("CURA:")
+            and not received.startswith("CURB:")
+        ):
             # Format: CUR:1500:195
-            parts = received.split(':')
+            parts = received.split(":")
             if len(parts) == 3:
                 _, value, mode = parts
                 # Validate mode is 195
@@ -180,16 +189,15 @@ class Characteristic(dbus.service.Object):
                     return CommandType.SET_CURRENT, {
                         "channel": "A",  # Mode 195 always uses channel A
                         "mode": int(mode),
-                        "value": int(value)
+                        "value": int(value),
                     }
                 else:
-                    print(
-                        f"❌ Invalid mode {mode} for CUR: format (expected 195)")
+                    print(f"❌ Invalid mode {mode} for CUR: format (expected 195)")
                     return None, None
 
         # Mode 196 format: CURA:1600:196
         elif received.startswith("CURA:"):
-            parts = received.split(':')
+            parts = received.split(":")
             if len(parts) == 3:
                 _, value, mode = parts
                 # Validate mode is 196
@@ -197,16 +205,15 @@ class Characteristic(dbus.service.Object):
                     return CommandType.SET_CURRENT, {
                         "channel": "A",
                         "mode": int(mode),
-                        "value": int(value)
+                        "value": int(value),
                     }
                 else:
-                    print(
-                        f"❌ Invalid mode {mode} for CURA: format (expected 196)")
+                    print(f"❌ Invalid mode {mode} for CURA: format (expected 196)")
                     return None, None
 
         # Mode 196 format: CURB:1200:196
         elif received.startswith("CURB:"):
-            parts = received.split(':')
+            parts = received.split(":")
             if len(parts) == 3:
                 _, value, mode = parts
                 # Validate mode is 196
@@ -214,11 +221,10 @@ class Characteristic(dbus.service.Object):
                     return CommandType.SET_CURRENT, {
                         "channel": "B",
                         "mode": int(mode),
-                        "value": int(value)
+                        "value": int(value),
                     }
                 else:
-                    print(
-                        f"❌ Invalid mode {mode} for CURB: format (expected 196)")
+                    print(f"❌ Invalid mode {mode} for CURB: format (expected 196)")
                     return None, None
 
         return None, None
@@ -237,13 +243,15 @@ class Characteristic(dbus.service.Object):
         props = self.get_properties().get(interface, {})
         if prop not in props:
             raise dbus.exceptions.DBusException(
-                "org.freedesktop.DBus.Error.InvalidArgs", "No such property")
+                "org.freedesktop.DBus.Error.InvalidArgs", "No such property"
+            )
         return props[prop]
 
     @dbus.service.method(PROP_IFACE, in_signature="ssv")
     def Set(self, interface, prop, value):
         raise dbus.exceptions.DBusException(
-            "org.freedesktop.DBus.Error.NotSupported", "Not supported")
+            "org.freedesktop.DBus.Error.NotSupported", "Not supported"
+        )
 
     @dbus.service.method(PROP_IFACE, in_signature="s", out_signature="a{sv}")
     def GetAll(self, interface):
@@ -262,7 +270,7 @@ class Characteristic(dbus.service.Object):
         """Handle write requests - now much simpler"""
         try:
             # Convert bytes to string
-            received = bytes(value).decode('utf-8').strip()
+            received = bytes(value).decode("utf-8").strip()
             print(f"📱 BLE Received: '{received}'")
 
             # Parse command
@@ -282,15 +290,26 @@ class Characteristic(dbus.service.Object):
 class DataCharacteristic(Characteristic):
     """Characteristic that sends notifications with machine state."""
 
-    def __init__(self, bus, index, service, state, pam_controller=None, write_lock=None, cmd_processor=None):
-        super().__init__(bus, index, CHAR_UUID, [
-            "read", "notify", "write"], service, cmd_processor)
-        self.state = state   # MachineState instance
+    def __init__(
+        self,
+        bus,
+        index,
+        service,
+        state,
+        pam_controller=None,
+        write_lock=None,
+        cmd_processor=None,
+    ):
+        super().__init__(
+            bus, index, CHAR_UUID, ["read", "notify", "write"], service, cmd_processor
+        )
+        self.state = state  # MachineState instance
         self.pam_controller = pam_controller
         self.write_lock = write_lock
 
     def start_sending(self):
         """Background thread: read state and notify every 0.2s."""
+
         def loop():
             while True:
                 try:
@@ -330,7 +349,7 @@ class Advertisement(dbus.service.Object):
         self.service_uuids = [SERVICE_UUID]
         self.local_name = BLE_DEVICE_NAME
         self.include_tx_power = True
-        self.type = 'peripheral'
+        self.type = "peripheral"
         self.discoverable = False
         dbus.service.Object.__init__(self, bus, self.path)
 
@@ -340,41 +359,11 @@ class Advertisement(dbus.service.Object):
     def get_properties(self):
         properties = {
             LE_ADVERTISEMENT_IFACE: {
-                'Type': dbus.String(self.type),
+                "Type": dbus.String(self.type),
                 "ServiceUUIDs": dbus.Array(self.service_uuids, signature="s"),
                 "LocalName": self.local_name,
-                # 'IncludeTxPower': dbus.Boolean(self.include_tx_power),
-                # 'Discoverable': dbus.Boolean(self.discoverable),
             }
         }
-
-        # CRITICAL: Add flags to indicate NO bonding required
-        # Flag values:
-        # 0x01 - LE Limited Discoverable Mode
-        # 0x02 - LE General Discoverable Mode
-        # 0x04 - BR/EDR Not Supported
-        # 0x08 - Simultaneous LE and BR/EDR to Same Device Capable (controller)
-        # 0x10 - Simultaneous LE and BR/EDR to Same Device Capable (host)
-
-        # Use 0x06 = LE General Discoverable + BR/EDR Not Supported
-        # This tells Android it's a pure LE device that doesn't need bonding
-        flags = dbus.Byte(0x04)
-        properties[LE_ADVERTISEMENT_IFACE]['Flags'] = flags
-
-        # Add appearance - use "Generic Sensor" (0x0540)
-        # This indicates it's a simple device that doesn't need pairing
-        # properties[LE_ADVERTISEMENT_IFACE]['Appearance'] = dbus.UInt16(0x0000)
-
-        # Add manufacturer data to further indicate no bonding
-        # Using a custom manufacturer ID (0xFFFF for testing)
-        manufacturer_data = dbus.Dictionary({
-            dbus.UInt16(0xFFFF): dbus.Array([
-                dbus.Byte(0x00),  # No bonding required flag
-                dbus.Byte(0x01),  # Just Works supported
-            ], signature='y')
-        }, signature='qv')
-        # properties[LE_ADVERTISEMENT_IFACE]['ManufacturerData'] = manufacturer_data
-
         return properties
 
     @dbus.service.method(PROP_IFACE, in_signature="s", out_signature="a{sv}")
@@ -385,23 +374,24 @@ class Advertisement(dbus.service.Object):
 
     @dbus.service.method(LE_ADVERTISEMENT_IFACE)
     def Release(self):
-        print('Advertisement released')
+        print("Advertisement released")
 
 
 def unregister_old_advertisement(bus, adapter_path, adv_path):
     """Try to unregister an advertisement by path if it exists."""
     try:
         ad_manager = dbus.Interface(
-            bus.get_object("org.bluez", adapter_path),
-            LE_ADVERTISING_MANAGER_IFACE
+            bus.get_object("org.bluez", adapter_path), LE_ADVERTISING_MANAGER_IFACE
         )
         ad_manager.UnregisterAdvertisement(dbus.ObjectPath(adv_path))
         print(f"✅ Unregistered old advertisement: {adv_path}")
     except dbus.exceptions.DBusException as e:
         # Ignore error if it wasn't registered
-        if "org.bluez.Error.DoesNotExist" not in str(e) and \
-           "org.bluez.Error.NotPermitted" not in str(e):
+        if "org.bluez.Error.DoesNotExist" not in str(
+            e
+        ) and "org.bluez.Error.NotPermitted" not in str(e):
             print(f"⚠️ Failed to unregister {adv_path}: {e}")
+
 
 # -------------------------------------------------
 # Main entry: start BLE server in a GLib main loop thread
@@ -410,7 +400,7 @@ def unregister_old_advertisement(bus, adapter_path, adv_path):
 
 def run_ble_server(state, pam_controller, write_lock, cmd_processor):
     """Set up and register GATT application and advertisement.
-       This function will block; call it in a separate thread."""
+    This function will block; call it in a separate thread."""
     print("🔄 Generating new random BLE identity...")
     # os.system("sudo hciconfig hci0 leadv 3")
     DBusGMainLoop(set_as_default=True)
@@ -425,8 +415,9 @@ def run_ble_server(state, pam_controller, write_lock, cmd_processor):
     # Build GATT app
     app = Application(bus)
     service = Service(bus, 0, SERVICE_UUID, True)
-    ch = DataCharacteristic(bus, 0, service, state,
-                            pam_controller, write_lock, cmd_processor)
+    ch = DataCharacteristic(
+        bus, 0, service, state, pam_controller, write_lock, cmd_processor
+    )
     service.add_characteristic(ch)
     app.add_service(service)
 
@@ -458,17 +449,11 @@ def run_ble_server(state, pam_controller, write_lock, cmd_processor):
         mainloop.quit()
 
     service_manager.RegisterApplication(
-        app.get_path(),
-        {},
-        reply_handler=on_app_registered,
-        error_handler=on_app_error
+        app.get_path(), {}, reply_handler=on_app_registered, error_handler=on_app_error
     )
 
     ad_manager.RegisterAdvertisement(
-        adv.get_path(),
-        {},
-        reply_handler=on_adv_registered,
-        error_handler=on_adv_error
+        adv.get_path(), {}, reply_handler=on_adv_registered, error_handler=on_adv_error
     )
 
     try:
