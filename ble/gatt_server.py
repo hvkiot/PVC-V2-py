@@ -343,8 +343,8 @@ class Advertisement(dbus.service.Object):
                 'Type': dbus.String(self.type),
                 "ServiceUUIDs": dbus.Array(self.service_uuids, signature="s"),
                 "LocalName": self.local_name,
-                'IncludeTxPower': dbus.Boolean(self.include_tx_power),
-                'Discoverable': dbus.Boolean(self.discoverable),
+                # 'IncludeTxPower': dbus.Boolean(self.include_tx_power),
+                # 'Discoverable': dbus.Boolean(self.discoverable),
             }
         }
 
@@ -363,7 +363,7 @@ class Advertisement(dbus.service.Object):
 
         # Add appearance - use "Generic Sensor" (0x0540)
         # This indicates it's a simple device that doesn't need pairing
-        properties[LE_ADVERTISEMENT_IFACE]['Appearance'] = dbus.UInt16(0x0000)
+        # properties[LE_ADVERTISEMENT_IFACE]['Appearance'] = dbus.UInt16(0x0000)
 
         # Add manufacturer data to further indicate no bonding
         # Using a custom manufacturer ID (0xFFFF for testing)
@@ -373,7 +373,7 @@ class Advertisement(dbus.service.Object):
                 dbus.Byte(0x01),  # Just Works supported
             ], signature='y')
         }, signature='qv')
-        properties[LE_ADVERTISEMENT_IFACE]['ManufacturerData'] = manufacturer_data
+        # properties[LE_ADVERTISEMENT_IFACE]['ManufacturerData'] = manufacturer_data
 
         return properties
 
