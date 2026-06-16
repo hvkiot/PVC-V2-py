@@ -412,7 +412,7 @@ def run_ble_server(state, pam_controller, write_lock, cmd_processor):
     """Set up and register GATT application and advertisement.
        This function will block; call it in a separate thread."""
     print("🔄 Generating new random BLE identity...")
-    os.system("sudo hciconfig hci0 leadv 3")
+    # os.system("sudo hciconfig hci0 leadv 3")
     DBusGMainLoop(set_as_default=True)
     bus = dbus.SystemBus()
 
